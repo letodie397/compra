@@ -186,10 +186,25 @@ export async function patchServiceField(
   field: 'checklist' | 'materiais' | 'relatorios',
   value: unknown
 ): Promise<void> {
+  const cleanValue = sanitizeServiceValue(value)
   await update(ref(database, paths.serviceData(orderId)), {
-    [field]: value ?? null,
+    [field]: cleanValue ?? null,
     atualizadoEm: new Date().toISOString(),
   })
+}
+
+function sanitizeServiceValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) =>
+      item && typeof item === 'object' && !Array.isArray(item)
+        ? stripUndefined(item as Record<string, unknown>)
+        : item
+    )
+  }
+  if (value && typeof value === 'object') {
+    return stripUndefined(value as Record<string, unknown>)
+  }
+  return value
 }
 
 export async function removeServiceData(orderId: string): Promise<void> {

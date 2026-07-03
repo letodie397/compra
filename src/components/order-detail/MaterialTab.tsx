@@ -317,11 +317,15 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
     }
 
     setCommittedCodes(nextCommitted)
-    await onSave(items)
-    setDirty(false)
-    setExpandedId(null)
-    setSavedOk(true)
-    setTimeout(() => setSavedOk(false), 3000)
+    try {
+      await onSave(items)
+      setDirty(false)
+      setExpandedId(null)
+      setSavedOk(true)
+      setTimeout(() => setSavedOk(false), 3000)
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Erro ao salvar materiais')
+    }
   }
 
   const isBusy = uploading.size > 0 || generatingCode.size > 0
