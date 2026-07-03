@@ -4,7 +4,6 @@ import type { Sector } from '../types'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
-  /** Se definido, só permite esses setores. Se omitido, qualquer usuário autenticado. */
   allowedSectors?: Sector[]
 }
 
@@ -19,12 +18,17 @@ export function ProtectedRoute({ children, allowedSectors }: ProtectedRouteProps
     )
   }
 
-  if (!user || !profile) {
+  // Não autenticado → login
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  // Autenticado mas sem perfil → Login trata esse estado (tela de "conta sem perfil")
+  if (!profile) {
     return <Navigate to="/login" replace />
   }
 
   if (allowedSectors && !allowedSectors.includes(profile.sector)) {
-    // Redireciona para a página adequada ao setor do usuário
     if (profile.sector === 'manutencao') return <Navigate to="/manutencao" replace />
     return <Navigate to="/" replace />
   }
