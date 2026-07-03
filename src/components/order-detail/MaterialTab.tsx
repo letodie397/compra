@@ -15,6 +15,22 @@ const TIPOS: { value: MaterialItemTipo; label: string }[] = [
 
 const NEEDS_CODE: MaterialItemTipo[] = ['AMPLIFICADOR', 'MESA_DE_SOM']
 
+type MaterialFieldError = 'imagemAntigo' | 'imagemNovo' | 'justificativa'
+
+function getMaterialItemErrors(item: MaterialItem): MaterialFieldError[] {
+  const errors: MaterialFieldError[] = []
+  if (!item.imagemAntigo) errors.push('imagemAntigo')
+  if (!item.imagemNovo) errors.push('imagemNovo')
+  if (!item.justificativa.trim()) errors.push('justificativa')
+  return errors
+}
+
+function validateMaterialItems(items: MaterialItem[]) {
+  return items
+    .map((item, index) => ({ item, index, errors: getMaterialItemErrors(item) }))
+    .filter(({ errors }) => errors.length > 0)
+}
+
 interface MaterialTabProps {
   orderId: string
   order: Order
@@ -71,12 +87,14 @@ function ImageUpload({
   label,
   value,
   uploading,
+  error,
   onFile,
   onRemove,
 }: {
   label: string
   value: string | null
   uploading: boolean
+  error?: boolean
   onFile: (file: File) => void
   onRemove: () => void
 }) {
@@ -86,13 +104,15 @@ function ImageUpload({
       {lightbox && value && (
         <Lightbox src={value} alt={label} onClose={() => setLightbox(false)} />
       )}
-      <span className="block text-xs font-medium text-gray-600">{label}</span>
+      <span className={`block text-xs font-medium ${error ? 'text-red-600' : 'text-gray-600'}`}>{label}</span>
       {value ? (
         <div className="relative group w-full">
           <img
             src={value}
             alt={label}
-            className="w-full h-28 object-cover rounded-xl border border-gray-200 cursor-zoom-in"
+            className={`w-full h-28 object-cover rounded-xl border cursor-zoom-in ${
+              error ? 'border-red-400' : 'border-gray-200'
+            }`}
             loading="lazy"
             onClick={() => setLightbox(true)}
           />
@@ -115,7 +135,9 @@ function ImageUpload({
         <label className={`flex flex-col items-center justify-center h-28 w-full border-2 border-dashed rounded-xl transition-colors ${
           uploading
             ? 'border-icm-red-300 bg-red-50/40 cursor-wait'
-            : 'border-gray-300 cursor-pointer hover:border-icm-red-400 hover:bg-red-50/30'
+            : error
+              ? 'border-red-400 bg-red-50/40 cursor-pointer hover:border-red-500'
+              : 'border-gray-300 cursor-pointer hover:border-icm-red-400 hover:bg-red-50/30'
         }`}>
           {uploading ? (
             <>
@@ -154,6 +176,7 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [uploading, setUploading] = useState<Set<UploadingKey>>(new Set())
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Map<string, MaterialFieldError[]>>(new Map())
   const [generatingCode, setGeneratingCode] = useState<Set<string>>(new Set())
   // Cache local: itemId → { tipo → código reservado } — nunca vai pro Firebase aqui
   const [codeCache, setCodeCache] = useState<Map<string, Partial<Record<MaterialItemTipo, string>>>>(new Map())
@@ -183,6 +206,7 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
     setItems((prev) => [...prev, item])
     setExpandedId(item.id)
     setDirty(true)
+    setFieldErrors(new Map())
   }
 
   async function removeItem(id: string) {
@@ -204,11 +228,22 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
     await onSave(updated)
   }
 
+  function clearFieldError(itemId: string, field: MaterialFieldError) {
+    setFieldErrors((prev) => {
+      const next = new Map(prev)
+      const remaining = (next.get(itemId) ?? []).filter((f) => f !== field)
+      if (remaining.length === 0) next.delete(itemId)
+      else next.set(itemId, remaining)
+      return next
+    })
+  }
+
   function updateItem(id: string, field: keyof MaterialItem, value: unknown) {
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
     )
     setDirty(true)
+    if (field === 'justificativa') clearFieldError(id, 'justificativa')
   }
 
   async function handleTipoChange(itemId: string, tipo: MaterialItemTipo) {
@@ -269,6 +304,7 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
       const context = field === 'imagemAntigo' ? 'material-antigo' : 'material-novo'
       const url = await uploadImage(file, orderId, context)
       updateItem(itemId, field, url)
+      clearFieldError(itemId, field)
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Erro ao enviar imagem')
     } finally {
@@ -288,6 +324,22 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
   }
 
   async function handleSave() {
+    if (items.length > 0) {
+      const invalid = validateMaterialItems(items)
+      if (invalid.length > 0) {
+        const errorMap = new Map(invalid.map(({ item, errors }) => [item.id, errors]))
+        setFieldErrors(errorMap)
+        setExpandedId(invalid[0].item.id)
+        setUploadError(
+          `Item ${invalid[0].index + 1}: preencha as duas fotos e a justificativa antes de salvar.`
+        )
+        return
+      }
+    }
+
+    setFieldErrors(new Map())
+    setUploadError(null)
+
     // Sincroniza itens de equipamento no Firebase antes de salvar
     const nextCommitted = new Map(committedCodes)
 
@@ -370,11 +422,17 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
             const upNovo = uploading.has(`${item.id}-novo`)
             const isGenerating = generatingCode.has(item.id)
             const tipoLabel = TIPOS.find((t) => t.value === item.tipo)?.label ?? item.tipo
+            const itemErrors = fieldErrors.get(item.id) ?? []
+            const hasAntigoError = itemErrors.includes('imagemAntigo')
+            const hasNovoError = itemErrors.includes('imagemNovo')
+            const hasJustificativaError = itemErrors.includes('justificativa')
 
             return (
               <div
                 key={item.id}
-                className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden"
+                className={`bg-white border rounded-2xl shadow-sm overflow-hidden ${
+                  itemErrors.length > 0 ? 'border-red-200' : 'border-gray-100'
+                }`}
               >
                 <button
                   type="button"
@@ -482,32 +540,41 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
 
                     <div className="grid grid-cols-2 gap-4">
                       <ImageUpload
-                        label="Foto do item ANTIGO"
+                        label="Foto do item ANTIGO *"
                         value={item.imagemAntigo}
                         uploading={upAntigo}
+                        error={hasAntigoError}
                         onFile={(f) => handleImageUpload(item.id, 'imagemAntigo', f)}
                         onRemove={() => handleImageRemove(item.id, 'imagemAntigo')}
                       />
                       <ImageUpload
-                        label="Foto do item NOVO"
+                        label="Foto do item NOVO *"
                         value={item.imagemNovo}
                         uploading={upNovo}
+                        error={hasNovoError}
                         onFile={(f) => handleImageUpload(item.id, 'imagemNovo', f)}
                         onRemove={() => handleImageRemove(item.id, 'imagemNovo')}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                        Justificativa da substituição
+                      <label className={`block text-xs font-medium mb-1 ${hasJustificativaError ? 'text-red-600' : 'text-gray-600'}`}>
+                        Justificativa da substituição *
                       </label>
                       <textarea
                         value={item.justificativa}
                         onChange={(e) => updateItem(item.id, 'justificativa', e.target.value)}
                         placeholder="Descreva o motivo da substituição do item..."
                         rows={3}
-                        className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-icm-red-500 focus:border-icm-red-500 resize-none"
+                        className={`w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 resize-none ${
+                          hasJustificativaError
+                            ? 'border-red-400 focus:ring-red-400 focus:border-red-400'
+                            : 'border-gray-300 focus:ring-icm-red-500 focus:border-icm-red-500'
+                        }`}
                       />
+                      {hasJustificativaError && (
+                        <p className="text-[11px] text-red-600 mt-1">Informe o motivo da substituição</p>
+                      )}
                     </div>
                   </div>
                 )}
