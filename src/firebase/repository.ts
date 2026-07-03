@@ -3,7 +3,7 @@ import { database } from './config'
 import { paths, normalizePedidoKey } from './paths'
 import { getClientId } from './client'
 import { stripUndefined } from './sanitize'
-import type { Technician, Order, ServiceArea, OrderServiceData, UserProfile, EquipmentItem } from '../types'
+import type { Technician, Order, OrderServiceData, UserProfile, EquipmentItem } from '../types'
 
 export class DuplicateOrderError extends Error {
   constructor(numero: string) {
@@ -63,17 +63,18 @@ async function mergePatchRecord(
 
 export async function createTechnician(data: {
   name: string
+  companyName?: string
   phone: string
   email?: string
-  areas: Omit<ServiceArea, 'id'>[]
 }): Promise<Technician> {
   const id = crypto.randomUUID()
   const technician: Technician = {
     id,
     name: data.name,
+    companyName: data.companyName,
     phone: data.phone,
     email: data.email,
-    areas: data.areas.map((a) => ({ ...a, id: crypto.randomUUID() })),
+    areas: [],
     createdAt: new Date().toISOString(),
     updatedAt: now(),
     v: 1,
@@ -331,4 +332,8 @@ export async function unmarkEquipmentDelivered(code: string): Promise<void> {
     entregue: false,
     entregueEm: null,
   })
+}
+
+export async function deleteEquipmentItem(code: string): Promise<void> {
+  await remove(ref(database, paths.equipmentItem(code)))
 }

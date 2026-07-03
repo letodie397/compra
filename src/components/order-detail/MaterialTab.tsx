@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Save, ImagePlus, X, Package, Loader2, Tag, ZoomIn } from 'lucide-react'
+import { Plus, Trash2, Save, ImagePlus, X, Package, Loader2, Tag, ZoomIn, CheckCircle2 } from 'lucide-react'
 import { uploadImage, deleteImage } from '../../utils/upload-image'
-import { createEquipmentCode } from '../../firebase/repository'
+import { createEquipmentCode, deleteEquipmentItem } from '../../firebase/repository'
 import { useAuth } from '../../contexts/AuthContext'
 import type { MaterialItem, MaterialItemTipo, Order } from '../../types'
 
@@ -150,6 +150,7 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
   const { profile } = useAuth()
   const [items, setItems] = useState<MaterialItem[]>(initialMateriais)
   const [dirty, setDirty] = useState(false)
+  const [savedOk, setSavedOk] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [uploading, setUploading] = useState<Set<UploadingKey>>(new Set())
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -193,6 +194,19 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
     const item = items.find((i) => i.id === itemId)
     if (!item || item.tipo === tipo) return
 
+    // Se o item tinha um código gerado, deleta do Firebase antes de trocar
+    if (item.codigo && NEEDS_CODE.includes(item.tipo as MaterialItemTipo)) {
+      deleteEquipmentItem(item.codigo).catch(console.warn)
+      // Remove do cache também para forçar nova geração
+      setCodeCache((prev) => {
+        const next = new Map(prev)
+        const entry = { ...next.get(itemId) }
+        delete entry[item.tipo as MaterialItemTipo]
+        next.set(itemId, entry)
+        return next
+      })
+    }
+
     if (NEEDS_CODE.includes(tipo)) {
       // Verifica cache: se já gerou código para este tipo neste item, reutiliza
       const cached = codeCache.get(itemId)?.[tipo]
@@ -204,7 +218,7 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
         return
       }
 
-      // Gera novo código (apenas na primeira vez para este tipo)
+      // Gera novo código
       setGeneratingCode((prev) => new Set(prev).add(itemId))
       try {
         const code = await createEquipmentCode(
@@ -214,7 +228,6 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
           order.nomeIgreja,
           profile?.name ?? 'Instalador'
         )
-        // Armazena no cache para reutilizar se o usuário trocar e voltar
         setCodeCache((prev) => {
           const next = new Map(prev)
           next.set(itemId, { ...next.get(itemId), [tipo]: code })
@@ -234,7 +247,7 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
         })
       }
     } else {
-      // Tipos sem código: limpa o código exibido mas mantém cache
+      // Tipos sem código: limpa o código
       setItems((prev) =>
         prev.map((i) => (i.id === itemId ? { ...i, tipo, codigo: undefined } : i))
       )
@@ -275,6 +288,8 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
   async function handleSave() {
     await onSave(items)
     setDirty(false)
+    setSavedOk(true)
+    setTimeout(() => setSavedOk(false), 3000)
   }
 
   const isBusy = uploading.size > 0 || generatingCode.size > 0
@@ -466,24 +481,33 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={handleSave}
-        disabled={saving || !dirty || isBusy}
-        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-icm-red-600 text-white rounded-xl text-sm font-semibold hover:bg-icm-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {isBusy ? (
-          <>
-            <Loader2 size={16} className="animate-spin" />
-            {generatingCode.size > 0 ? 'Gerando código...' : 'Aguardando uploads...'}
-          </>
-        ) : (
-          <>
-            <Save size={16} />
-            {saving ? 'Salvando...' : dirty ? 'Salvar Materiais' : 'Salvo'}
-          </>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving || !dirty || isBusy}
+          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-icm-red-600 text-white rounded-xl text-sm font-semibold hover:bg-icm-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {isBusy ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              {generatingCode.size > 0 ? 'Gerando código...' : 'Aguardando uploads...'}
+            </>
+          ) : (
+            <>
+              <Save size={16} />
+              {saving ? 'Salvando...' : dirty ? 'Salvar Materiais' : 'Salvar Materiais'}
+            </>
+          )}
+        </button>
+
+        {savedOk && (
+          <span className="flex items-center gap-1.5 text-sm font-semibold text-emerald-600 animate-fade-in">
+            <CheckCircle2 size={17} />
+            Materiais salvos!
+          </span>
         )}
-      </button>
+      </div>
     </div>
   )
 }

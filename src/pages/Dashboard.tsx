@@ -154,23 +154,6 @@ export function Dashboard() {
         )}
       </div>
 
-      {stats && stats.totalTechnicians === 0 && (
-        <div className="bg-icm-red-50 border border-icm-red-200 rounded-xl p-5 flex items-start gap-3">
-          <Users className="text-icm-red-600 shrink-0 mt-0.5" size={22} />
-          <div>
-            <h3 className="font-semibold text-icm-red-900 text-sm lg:text-base">
-              Cadastre prestadores de serviço
-            </h3>
-            <p className="text-sm text-icm-red-700 mt-1">
-              Para que o sistema identifique conflitos de área, cadastre os técnicos e suas regiões
-              de atendimento.
-            </p>
-            <Link to="/prestadores" className="inline-block mt-3">
-              <Button size="sm">Cadastrar Prestador</Button>
-            </Link>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

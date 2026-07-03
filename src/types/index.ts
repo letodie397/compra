@@ -1,19 +1,10 @@
-export type AreaType = 'estado' | 'cidade' | 'bairro'
-
-export interface ServiceArea {
-  id: string
-  type: AreaType
-  cidade: string
-  bairro?: string
-}
-
 export interface Technician {
   id: string
   name: string
   companyName?: string
   phone: string
   email?: string
-  areas: ServiceArea[]
+  areas?: unknown[]
   createdAt: string
   updatedAt?: number
   v?: number
@@ -39,26 +30,6 @@ export interface Order {
 }
 
 export type SyncStatus = 'loading' | 'connected' | 'offline' | 'error'
-
-export type AlertType =
-  | 'area_outro_tecnico'
-  | 'proximidade_outro_tecnico'
-  | 'pedido_mesmo_bairro'
-  | 'pedido_proximo'
-  | 'pedido_raio'
-  | 'sem_tecnico'
-
-export interface ConflictAlert {
-  type: AlertType
-  message: string
-  technicianId?: string
-  technicianName?: string
-  orderId?: string
-  orderNumero?: string
-  orderIgreja?: string
-  distanceKm?: number
-  severity: 'warning' | 'info' | 'error'
-}
 
 export type MatchType = 'exato' | 'prefixo' | 'palavra' | 'parcial' | 'historico' | 'maranata'
 

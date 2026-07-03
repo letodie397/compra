@@ -7,7 +7,7 @@ import {
   patchOrder,
   removeOrder,
 } from '../firebase/repository'
-import type { Technician, Order, ServiceArea } from '../types'
+import type { Technician, Order } from '../types'
 
 export function useTechnicians() {
   return useFirebaseContext().technicians
@@ -47,7 +47,6 @@ export async function addTechnician(data: {
   companyName?: string
   phone: string
   email?: string
-  areas: Omit<ServiceArea, 'id'>[]
 }) {
   return createTechnician(data)
 }

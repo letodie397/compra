@@ -1,38 +1,29 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Church, MapPin, User, AlertTriangle } from 'lucide-react'
-import { useTechnicians, useOrders, addOrder } from '../hooks/useData'
+import { Church, MapPin, User } from 'lucide-react'
+import { useTechnicians, addOrder } from '../hooks/useData'
 import { searchChurchLocations } from '../data/church-parser'
-import { getLocationStats, getCoordinatesCount } from '../data/es-locations'
 import { resolveChurchCoordinates } from '../data/maranata-churches'
-import { APP_VERSION } from '../config/version'
-import { PROXIMITY_RADIUS_KM } from '../data/geo-utils'
-import { detectConflicts } from '../data/conflict-detector'
 import { DuplicateOrderError, WriteConflictError } from '../firebase/repository'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
-import { AlertBanner } from '../components/ui/AlertBanner'
 import { ConfidenceBadge } from '../components/ui/Badge'
 import { LocationSuggestions } from '../components/LocationSuggestions'
 import { PageContainer } from '../components/PageContainer'
-import type { ChurchIdentification, ChurchIdentificationCandidate, ConflictAlert } from '../types'
+import type { ChurchIdentification, ChurchIdentificationCandidate } from '../types'
 
 export function NewOrder() {
   const navigate = useNavigate()
   const technicians = useTechnicians()
-  const orders = useOrders()
 
   const [numeroPedido, setNumeroPedido] = useState('')
   const [nomeIgreja, setNomeIgreja] = useState('')
   const [technicianId, setTechnicianId] = useState('')
   const [observacoes, setObservacoes] = useState('')
   const [saving, setSaving] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
-  const [confirmedAlerts, setConfirmedAlerts] = useState(false)
   const [selectedLocation, setSelectedLocation] = useState<ChurchIdentification | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const locationStats = getLocationStats()
 
   const searchResult = useMemo(() => {
     if (!nomeIgreja.trim()) return null
@@ -41,12 +32,7 @@ export function NewOrder() {
 
   useEffect(() => {
     setSelectedLocation(null)
-    setConfirmedAlerts(false)
   }, [nomeIgreja])
-
-  useEffect(() => {
-    setConfirmedAlerts(false)
-  }, [technicianId])
 
   const identification = useMemo<ChurchIdentification | null>(() => {
     if (selectedLocation) return selectedLocation
@@ -55,31 +41,6 @@ export function NewOrder() {
     return searchResult.best
   }, [selectedLocation, searchResult])
 
-  const alertIdentification = useMemo<ChurchIdentification | null>(() => {
-    if (selectedLocation) return selectedLocation
-    if (identification) return identification
-    if (searchResult?.best) return searchResult.best
-    return null
-  }, [selectedLocation, identification, searchResult])
-
-  const newCoords = useMemo(() => {
-    if (!alertIdentification?.bairro || !alertIdentification?.cidade) return undefined
-    return resolveChurchCoordinates(alertIdentification)
-  }, [alertIdentification])
-
-  const alerts = useMemo<ConflictAlert[]>(() => {
-    if (!alertIdentification || !technicians || !orders) return []
-    return detectConflicts(
-      technicians,
-      alertIdentification,
-      orders,
-      technicianId || undefined,
-      undefined,
-      newCoords
-    )
-  }, [alertIdentification, technicians, orders, technicianId, newCoords])
-
-  const hasWarnings = alerts.some((a) => a.severity === 'warning' || a.severity === 'error')
   const needsLocationSelection =
     searchResult !== null &&
     searchResult.suggestions.length > 0 &&
@@ -98,28 +59,13 @@ export function NewOrder() {
       matchedFrom: candidate.matchedFrom,
       matchType: candidate.matchType,
     })
-    setConfirmedAlerts(false)
-  }
-
-  function handleUseTechnician(id: string) {
-    setTechnicianId(id)
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!numeroPedido.trim() || !nomeIgreja.trim()) return
-
     if (needsLocationSelection) return
 
-    if (hasWarnings && !confirmedAlerts) {
-      setShowConfirm(true)
-      return
-    }
-
-    await saveOrder()
-  }
-
-  async function saveOrder() {
     setSaving(true)
     setSaveError(null)
     try {
@@ -153,23 +99,12 @@ export function NewOrder() {
     }
   }
 
-  function handleConfirmAndSave() {
-    setConfirmedAlerts(true)
-    setShowConfirm(false)
-    saveOrder()
-  }
-
   return (
     <PageContainer size="narrow" className="space-y-6">
       <div>
         <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Novo Pedido</h1>
         <p className="text-gray-500 mt-1">
           Cadastre um pedido informando o número e o nome da igreja
-        </p>
-        <p className="text-xs text-gray-400 mt-1">
-          {locationStats.totalBairros} bairros • {getCoordinatesCount()} GPS •{' '}
-          {locationStats.totalCidades} cidades cobertas • {PROXIMITY_RADIUS_KM} km
-          <span className="text-gray-300 ml-2">v{APP_VERSION}</span>
         </p>
       </div>
 
@@ -198,24 +133,11 @@ export function NewOrder() {
             value={nomeIgreja}
             onChange={(e) => setNomeIgreja(e.target.value)}
             placeholder="Ex: Normilia 1, Ipiranga 2, Jardim da Penha I"
-            hint="Digite o início do nome do bairro + número da igreja. Ex: 'Normilia' encontra 'Normília da Cunha'. Se houver várias opções, escolha a correta."
+            hint="Digite o início do nome do bairro + número. Se houver várias opções, escolha a correta."
             required
             autoComplete="off"
             enterKeyHint="next"
           />
-
-          {nomeIgreja.trim().length >= 3 && alerts.length > 0 && alertIdentification && (
-            <div className="space-y-2 -mt-1">
-              {alerts.map((alert, i) => (
-                <AlertBanner
-                  key={i}
-                  alert={alert}
-                  selectedTechnicianId={technicianId}
-                  onUseTechnician={handleUseTechnician}
-                />
-              ))}
-            </div>
-          )}
 
           {searchResult && searchResult.suggestions.length > 0 && (
             <LocationSuggestions
@@ -255,17 +177,6 @@ export function NewOrder() {
                   )}
                 </p>
               )}
-              {identification.bairroHistorico &&
-                identification.bairroHistorico !== identification.bairro && (
-                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5 mt-3">
-                    Igreja com nome de bairro antigo: <strong>{identification.bairroHistorico}</strong>{' '}
-                    (hoje {identification.bairro}, {identification.cidade})
-                  </p>
-                )}
-              <p className="text-xs text-icm-red-600 mt-2">
-                Correspondência: "{identification.matchedFrom}"
-                {identification.matchType && ` (${identification.matchType})`}
-              </p>
             </div>
           )}
 
@@ -277,7 +188,7 @@ export function NewOrder() {
 
           {nomeIgreja.trim().length >= 3 && searchResult?.suggestions.length === 0 && (
             <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-600">
-              Nenhum bairro encontrado para "{searchResult.query}". Verifique a grafia ou use o nome completo do bairro.
+              Nenhum bairro encontrado para "{searchResult.query}". Verifique a grafia ou use o nome completo.
             </div>
           )}
         </div>
@@ -299,7 +210,7 @@ export function NewOrder() {
             onChange={(e) => setTechnicianId(e.target.value)}
             options={(technicians ?? []).map((t) => ({
               value: t.id,
-              label: t.name,
+              label: t.companyName ? `${t.companyName} — ${t.name}` : t.name,
             }))}
             placeholder="Selecione um técnico (opcional)"
           />
@@ -339,57 +250,10 @@ export function NewOrder() {
             loading={saving}
             disabled={needsLocationSelection}
           >
-            {hasWarnings ? 'Verificar e Salvar' : 'Salvar Pedido'}
+            Salvar Pedido
           </Button>
         </div>
       </form>
-
-      {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowConfirm(false)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
-                <AlertTriangle className="text-amber-600" size={24} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900">Confirmar Cadastro</h3>
-                <p className="text-sm text-gray-500">Foram detectados alertas de área</p>
-              </div>
-            </div>
-
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {alerts
-                .filter((a) => a.severity === 'warning' || a.severity === 'error')
-                .map((alert, i) => (
-                  <AlertBanner
-                    key={i}
-                    alert={alert}
-                    selectedTechnicianId={technicianId}
-                    onUseTechnician={handleUseTechnician}
-                  />
-                ))}
-            </div>
-
-            <p className="text-sm text-gray-600">
-              Deseja continuar e cadastrar este pedido mesmo com os alertas acima?
-            </p>
-
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setShowConfirm(false)}
-              >
-                Revisar
-              </Button>
-              <Button className="flex-1" onClick={handleConfirmAndSave} loading={saving}>
-                Confirmar e Salvar
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </PageContainer>
   )
 }

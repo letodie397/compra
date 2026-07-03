@@ -1,23 +1,20 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { MapPin, AlertTriangle, ArrowLeft } from 'lucide-react'
+import { MapPin, ArrowLeft } from 'lucide-react'
 import { useTechnicians, useOrders, updateOrder } from '../hooks/useData'
 import { searchChurchLocations } from '../data/church-parser'
 import { resolveChurchCoordinates } from '../data/maranata-churches'
-import { detectConflicts } from '../data/conflict-detector'
 import { DuplicateOrderError } from '../firebase/repository'
 import { buildPatch, hasPatchChanges } from '../utils/patch-diff'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
-import { AlertBanner } from '../components/ui/AlertBanner'
 import { ConfidenceBadge } from '../components/ui/Badge'
 import { LocationSuggestions } from '../components/LocationSuggestions'
 import { PageContainer } from '../components/PageContainer'
 import type {
   ChurchIdentification,
   ChurchIdentificationCandidate,
-  ConflictAlert,
   Order,
   OrderStatus,
 } from '../types'
@@ -38,8 +35,6 @@ export function EditOrder() {
   const [baseline, setBaseline] = useState<Order | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [showConfirm, setShowConfirm] = useState(false)
-  const [confirmedAlerts, setConfirmedAlerts] = useState(false)
 
   useEffect(() => {
     if (!order) return
@@ -59,8 +54,7 @@ export function EditOrder() {
     } else {
       setSelectedLocation(null)
     }
-    setConfirmedAlerts(false)
-  }, [order?.id])
+  }, [order?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const searchResult = useMemo(() => {
     if (!nomeIgreja.trim()) return null
@@ -74,31 +68,6 @@ export function EditOrder() {
     return searchResult.best
   }, [selectedLocation, searchResult])
 
-  const alertIdentification = useMemo<ChurchIdentification | null>(() => {
-    if (selectedLocation) return selectedLocation
-    if (identification) return identification
-    if (searchResult?.best) return searchResult.best
-    return null
-  }, [selectedLocation, identification, searchResult])
-
-  const newCoords = useMemo(() => {
-    if (!alertIdentification?.bairro || !alertIdentification?.cidade) return undefined
-    return resolveChurchCoordinates(alertIdentification)
-  }, [alertIdentification])
-
-  const alerts = useMemo<ConflictAlert[]>(() => {
-    if (!alertIdentification || !technicians || !orders || !order) return []
-    return detectConflicts(
-      technicians,
-      alertIdentification,
-      orders,
-      technicianId || undefined,
-      order.id,
-      newCoords
-    )
-  }, [alertIdentification, technicians, orders, technicianId, order, newCoords])
-
-  const hasWarnings = alerts.some((a) => a.severity === 'warning' || a.severity === 'error')
   const needsLocationSelection =
     searchResult !== null &&
     searchResult.suggestions.length > 0 &&
@@ -117,11 +86,14 @@ export function EditOrder() {
       matchedFrom: candidate.matchedFrom,
       matchType: candidate.matchType,
     })
-    setConfirmedAlerts(false)
   }
 
-  async function saveChanges() {
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
     if (!order || !baseline) return
+    if (!numeroPedido.trim() || !nomeIgreja.trim()) return
+    if (needsLocationSelection) return
+
     setSaving(true)
     setSaveError(null)
 
@@ -175,19 +147,6 @@ export function EditOrder() {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!numeroPedido.trim() || !nomeIgreja.trim()) return
-    if (needsLocationSelection) return
-
-    if (hasWarnings && !confirmedAlerts) {
-      setShowConfirm(true)
-      return
-    }
-
-    await saveChanges()
-  }
-
   if (!orders) {
     return (
       <PageContainer size="narrow">
@@ -219,7 +178,7 @@ export function EditOrder() {
           Voltar
         </Link>
         <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Editar Pedido #{order.numeroPedido}</h1>
-        <p className="text-gray-500 mt-1">Altere apenas os campos necessários — mudanças de outros usuários são preservadas.</p>
+        <p className="text-gray-500 mt-1">Altere apenas os campos necessários.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -237,7 +196,6 @@ export function EditOrder() {
             onChange={(e) => {
               setNomeIgreja(e.target.value)
               setSelectedLocation(null)
-              setConfirmedAlerts(false)
             }}
             required
           />
@@ -267,7 +225,10 @@ export function EditOrder() {
             label="Técnico responsável"
             value={technicianId}
             onChange={(e) => setTechnicianId(e.target.value)}
-            options={(technicians ?? []).map((t) => ({ value: t.id, label: t.name }))}
+            options={(technicians ?? []).map((t) => ({
+              value: t.id,
+              label: t.companyName ? `${t.companyName} — ${t.name}` : t.name,
+            }))}
             placeholder="Selecione um técnico"
           />
 
@@ -292,14 +253,6 @@ export function EditOrder() {
           />
         </div>
 
-        {alerts.length > 0 && (
-          <div className="space-y-3">
-            {alerts.map((alert, i) => (
-              <AlertBanner key={i} alert={alert} selectedTechnicianId={technicianId} />
-            ))}
-          </div>
-        )}
-
         {saveError && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-800">
             {saveError}
@@ -310,37 +263,11 @@ export function EditOrder() {
           <Button type="button" variant="secondary" onClick={() => navigate('/pedidos')}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={saving || needsLocationSelection}>
-            {saving ? 'Salvando...' : 'Salvar alterações'}
+          <Button type="submit" loading={saving} disabled={needsLocationSelection}>
+            Salvar alterações
           </Button>
         </div>
       </form>
-
-      {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="text-amber-500" />
-              <h3 className="font-semibold">Confirmar alterações</h3>
-            </div>
-            <p className="text-sm text-gray-600">Há alertas de proximidade ou conflito. Deseja salvar mesmo assim?</p>
-            <div className="flex gap-3 justify-end">
-              <Button variant="secondary" onClick={() => setShowConfirm(false)}>
-                Revisar
-              </Button>
-              <Button
-                onClick={() => {
-                  setConfirmedAlerts(true)
-                  setShowConfirm(false)
-                  saveChanges()
-                }}
-              >
-                Salvar
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </PageContainer>
   )
 }
