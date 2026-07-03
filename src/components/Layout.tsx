@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   Users,
   ClipboardList,
-  PlusCircle,
   Menu,
   X,
   Church,
@@ -36,7 +35,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', sectors: ['instalador', 'setor_som', 'admin'] },
   { to: '/pedidos', icon: ClipboardList, label: 'Pedidos', sectors: ['instalador', 'setor_som', 'admin'] },
-  { to: '/pedidos/novo', icon: PlusCircle, label: 'Novo Pedido', sectors: ['setor_som', 'admin'] },
   { to: '/prestadores', icon: Users, label: 'Prestadores', sectors: ['setor_som', 'admin'] },
   { to: '/manutencao', icon: Wrench, label: 'Manutenção', sectors: ['manutencao', 'admin'] },
   { to: '/admin', icon: Settings, label: 'Admin', sectors: ['admin'] },

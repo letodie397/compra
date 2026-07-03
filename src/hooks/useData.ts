@@ -44,6 +44,7 @@ export function useOrderStats() {
 
 export async function addTechnician(data: {
   name: string
+  companyName?: string
   phone: string
   email?: string
   areas: Omit<ServiceArea, 'id'>[]

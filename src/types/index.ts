@@ -10,6 +10,7 @@ export interface ServiceArea {
 export interface Technician {
   id: string
   name: string
+  companyName?: string
   phone: string
   email?: string
   areas: ServiceArea[]

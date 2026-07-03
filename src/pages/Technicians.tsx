@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Phone, Mail, MapPin, Trash2, Edit2 } from 'lucide-react'
+import { Plus, Phone, Mail, MapPin, Trash2, Edit2, Building2 } from 'lucide-react'
 import {
   useTechnicians,
   addTechnician,
@@ -51,6 +51,7 @@ export function Technicians() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Technician | null>(null)
   const [name, setName] = useState('')
+  const [companyName, setCompanyName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [areas, setAreas] = useState<AreaForm[]>([{ ...emptyArea }])
@@ -62,6 +63,7 @@ export function Technicians() {
   function openCreate() {
     setEditing(null)
     setName('')
+    setCompanyName('')
     setPhone('')
     setEmail('')
     setAreas([{ ...emptyArea }])
@@ -71,6 +73,7 @@ export function Technicians() {
   function openEdit(tech: Technician) {
     setEditing(tech)
     setName(tech.name)
+    setCompanyName(tech.companyName ?? '')
     setPhone(tech.phone)
     setEmail(tech.email ?? '')
     setAreas(
@@ -148,11 +151,12 @@ export function Technicians() {
           {
             ...editing,
             name: name.trim(),
+            companyName: companyName.trim() || undefined,
             phone: phone.trim(),
             email: email.trim() || undefined,
             areas: nextAreas,
           },
-          ['name', 'phone', 'email', 'areas']
+          ['name', 'companyName', 'phone', 'email', 'areas']
         )
 
         if (!areasEqual(editing.areas, validAreas)) {
@@ -167,6 +171,7 @@ export function Technicians() {
       } else {
         await addTechnician({
           name: name.trim(),
+          companyName: companyName.trim() || undefined,
           phone: phone.trim(),
           email: email.trim() || undefined,
           areas: validAreas,
@@ -243,6 +248,12 @@ export function Technicians() {
               </div>
 
               <h3 className="font-semibold text-gray-900 text-lg">{tech.name}</h3>
+              {tech.companyName && (
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <Building2 size={13} className="text-icm-red-400" />
+                  <span className="text-sm text-icm-red-700 font-medium">{tech.companyName}</span>
+                </div>
+              )}
 
               <div className="mt-3 space-y-1.5">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -285,9 +296,15 @@ export function Technicians() {
         size="lg"
       >
         <div className="space-y-5">
+          <Input
+            label="Nome da Empresa / Instaladora"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            placeholder="Ex: Instaladora ICM Vitória"
+          />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Nome completo"
+              label="Nome do responsável"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Nome do técnico"

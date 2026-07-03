@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react'
-import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { ref, remove } from 'firebase/database'
-import { auth, database } from '../firebase/config'
+import { database } from '../firebase/config'
+import { createUserWithoutSignIn } from '../firebase/auth'
 import { saveUserProfile, listUserProfiles } from '../firebase/repository'
 import { useFirebaseContext } from '../firebase/FirebaseProvider'
 import { useAuth } from '../contexts/AuthContext'
@@ -100,7 +100,7 @@ export function Admin() {
     setSubmitting(true)
     try {
       const email = toEmail(newLogin)
-      const cred = await createUserWithEmailAndPassword(auth, email, newPassword)
+      const cred = await createUserWithoutSignIn(email, newPassword)
       const profile: UserProfile = {
         uid: cred.user.uid,
         name: newName.trim(),
