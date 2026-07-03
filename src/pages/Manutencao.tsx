@@ -2,9 +2,20 @@ import { useEffect, useState } from 'react'
 import { ref, onValue } from 'firebase/database'
 import { database } from '../firebase/config'
 import { paths } from '../firebase/paths'
-import { markEquipmentDelivered, unmarkEquipmentDelivered } from '../firebase/repository'
-import { CheckCircle2, Clock, Package, Filter, Wrench, RotateCcw } from 'lucide-react'
-import type { EquipmentItem } from '../types'
+import { markEquipmentDelivered, unmarkEquipmentDelivered, getServiceData } from '../firebase/repository'
+import {
+  CheckCircle2,
+  Clock,
+  Package,
+  Filter,
+  Wrench,
+  RotateCcw,
+  ChevronDown,
+  ChevronUp,
+  ZoomIn,
+  X,
+} from 'lucide-react'
+import type { EquipmentItem, MaterialItem } from '../types'
 
 type FilterType = 'todos' | 'pendentes' | 'entregues'
 
@@ -13,11 +24,119 @@ const TYPE_LABEL: Record<string, string> = {
   MESA_DE_SOM: 'Mesa de Som',
 }
 
+function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/40 rounded-full p-2"
+      >
+        <X size={22} />
+      </button>
+      <img
+        src={src}
+        alt="Foto"
+        className="max-w-full max-h-full rounded-xl shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  )
+}
+
+function MaterialDetail({ item }: { item: MaterialItem }) {
+  const [lightbox, setLightbox] = useState<string | null>(null)
+  return (
+    <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
+
+      {item.nome && (
+        <div>
+          <span className="text-[11px] text-gray-400 uppercase tracking-wide font-medium">Descrição</span>
+          <p className="text-sm text-gray-800 mt-0.5">{item.nome}</p>
+        </div>
+      )}
+
+      {item.justificativa && (
+        <div>
+          <span className="text-[11px] text-gray-400 uppercase tracking-wide font-medium">Justificativa</span>
+          <p className="text-sm text-gray-700 mt-0.5">{item.justificativa}</p>
+        </div>
+      )}
+
+      {(item.imagemAntigo || item.imagemNovo) && (
+        <div className="grid grid-cols-2 gap-3">
+          {item.imagemAntigo && (
+            <div>
+              <span className="text-[11px] text-gray-400 uppercase tracking-wide font-medium block mb-1">
+                Item Antigo
+              </span>
+              <div className="relative group">
+                <img
+                  src={item.imagemAntigo}
+                  alt="Item antigo"
+                  className="w-full h-28 object-cover rounded-xl border border-gray-200 cursor-zoom-in"
+                  onClick={() => setLightbox(item.imagemAntigo)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setLightbox(item.imagemAntigo)}
+                  className="absolute top-1.5 left-1.5 bg-black/40 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <ZoomIn size={13} />
+                </button>
+              </div>
+            </div>
+          )}
+          {item.imagemNovo && (
+            <div>
+              <span className="text-[11px] text-gray-400 uppercase tracking-wide font-medium block mb-1">
+                Item Novo
+              </span>
+              <div className="relative group">
+                <img
+                  src={item.imagemNovo}
+                  alt="Item novo"
+                  className="w-full h-28 object-cover rounded-xl border border-gray-200 cursor-zoom-in"
+                  onClick={() => setLightbox(item.imagemNovo)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setLightbox(item.imagemNovo)}
+                  className="absolute top-1.5 left-1.5 bg-black/40 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <ZoomIn size={13} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!item.nome && !item.justificativa && !item.imagemAntigo && !item.imagemNovo && (
+        <p className="text-xs text-gray-400 italic">Nenhum detalhe adicional registrado.</p>
+      )}
+    </div>
+  )
+}
+
 export function Manutencao() {
   const [items, setItems] = useState<EquipmentItem[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterType>('pendentes')
   const [actionLoading, setActionLoading] = useState<Set<string>>(new Set())
+  const [expandedCode, setExpandedCode] = useState<string | null>(null)
+  // Cache de materiais carregados: orderId → MaterialItem[]
+  const [materialCache, setMaterialCache] = useState<Map<string, MaterialItem[]>>(new Map())
+  const [loadingDetail, setLoadingDetail] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const equipRef = ref(database, paths.equipmentItems)
@@ -27,7 +146,6 @@ export function Manutencao() {
       } else {
         const data = snap.val() as Record<string, EquipmentItem>
         const list = Object.values(data).sort((a, b) => {
-          // Pendentes primeiro, depois por código decrescente
           if (a.entregue !== b.entregue) return a.entregue ? 1 : -1
           return b.code.localeCompare(a.code)
         })
@@ -55,6 +173,35 @@ export function Manutencao() {
     }
   }
 
+  async function handleExpand(item: EquipmentItem) {
+    if (expandedCode === item.code) {
+      setExpandedCode(null)
+      return
+    }
+    setExpandedCode(item.code)
+
+    // Carrega materiais se ainda não estiver no cache
+    if (!materialCache.has(item.orderId)) {
+      setLoadingDetail((prev) => new Set(prev).add(item.code))
+      try {
+        const data = await getServiceData(item.orderId)
+        const mats: MaterialItem[] = data?.materiais ?? []
+        setMaterialCache((prev) => new Map(prev).set(item.orderId, mats))
+      } finally {
+        setLoadingDetail((prev) => {
+          const next = new Set(prev)
+          next.delete(item.code)
+          return next
+        })
+      }
+    }
+  }
+
+  function getMaterialItem(item: EquipmentItem): MaterialItem | null {
+    const mats = materialCache.get(item.orderId) ?? []
+    return mats.find((m) => m.codigo === item.code) ?? null
+  }
+
   const filtered = items.filter((i) => {
     if (filter === 'pendentes') return !i.entregue
     if (filter === 'entregues') return i.entregue
@@ -80,7 +227,6 @@ export function Manutencao() {
           </div>
         </div>
 
-        {/* Resumo */}
         <div className="grid grid-cols-3 divide-x divide-gray-100">
           <div className="px-5 py-3 text-center">
             <p className="text-2xl font-bold text-gray-800">{items.length}</p>
@@ -141,6 +287,9 @@ export function Manutencao() {
           {filtered.map((item) => {
             const isPending = !item.entregue
             const isActing = actionLoading.has(item.code)
+            const isExpanded = expandedCode === item.code
+            const isLoadingDet = loadingDetail.has(item.code)
+            const matItem = getMaterialItem(item)
 
             return (
               <div
@@ -149,12 +298,15 @@ export function Manutencao() {
                   isPending ? 'border-red-200' : 'border-emerald-200'
                 }`}
               >
-                {/* Barra lateral colorida */}
                 <div className="flex">
                   <div className={`w-1.5 shrink-0 ${isPending ? 'bg-red-500' : 'bg-emerald-500'}`} />
                   <div className="flex-1 px-4 py-4">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => handleExpand(item)}
+                        className="flex-1 min-w-0 text-left"
+                      >
                         {/* Código e tipo */}
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={`text-base font-mono font-bold ${
@@ -180,6 +332,9 @@ export function Manutencao() {
                               Entregue
                             </span>
                           )}
+                          <span className="ml-auto text-gray-400">
+                            {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                          </span>
                         </div>
 
                         {/* Informações do pedido */}
@@ -203,7 +358,7 @@ export function Manutencao() {
                             Entrada em {new Date(item.entregueEm).toLocaleString('pt-BR')}
                           </p>
                         )}
-                      </div>
+                      </button>
 
                       {/* Botão ação */}
                       <button
@@ -226,6 +381,24 @@ export function Manutencao() {
                         {isActing ? '...' : isPending ? 'Dar Entrada' : 'Desfazer'}
                       </button>
                     </div>
+
+                    {/* Detalhe expandido */}
+                    {isExpanded && (
+                      isLoadingDet ? (
+                        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-400">
+                          <div className="w-3.5 h-3.5 border-2 border-icm-red-500 border-t-transparent rounded-full animate-spin" />
+                          Carregando detalhes...
+                        </div>
+                      ) : matItem ? (
+                        <MaterialDetail item={matItem} />
+                      ) : (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-xs text-gray-400 italic">
+                            Nenhum detalhe disponível para este equipamento.
+                          </p>
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
               </div>

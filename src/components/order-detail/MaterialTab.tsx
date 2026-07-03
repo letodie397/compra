@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Save, ImagePlus, X, Package, Loader2, Tag } from 'lucide-react'
+import { Plus, Trash2, Save, ImagePlus, X, Package, Loader2, Tag, ZoomIn } from 'lucide-react'
 import { uploadImage, deleteImage } from '../../utils/upload-image'
 import { createEquipmentCode } from '../../firebase/repository'
 import { useAuth } from '../../contexts/AuthContext'
@@ -38,6 +38,35 @@ function newItem(): MaterialItem {
 
 type UploadingKey = `${string}-antigo` | `${string}-novo`
 
+// Lightbox simples para exibir imagem em tela cheia
+function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/40 rounded-full p-2"
+      >
+        <X size={22} />
+      </button>
+      <img
+        src={src}
+        alt={alt}
+        className="max-w-full max-h-full rounded-xl shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  )
+}
+
 function ImageUpload({
   label,
   value,
@@ -51,17 +80,29 @@ function ImageUpload({
   onFile: (file: File) => void
   onRemove: () => void
 }) {
+  const [lightbox, setLightbox] = useState(false)
   return (
     <div className="space-y-1">
+      {lightbox && value && (
+        <Lightbox src={value} alt={label} onClose={() => setLightbox(false)} />
+      )}
       <span className="block text-xs font-medium text-gray-600">{label}</span>
       {value ? (
         <div className="relative group w-full">
           <img
             src={value}
             alt={label}
-            className="w-full h-28 object-cover rounded-xl border border-gray-200"
+            className="w-full h-28 object-cover rounded-xl border border-gray-200 cursor-zoom-in"
             loading="lazy"
+            onClick={() => setLightbox(true)}
           />
+          <button
+            type="button"
+            onClick={() => setLightbox(true)}
+            className="absolute top-1.5 left-1.5 bg-black/40 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <ZoomIn size={13} />
+          </button>
           <button
             type="button"
             onClick={onRemove}
@@ -113,6 +154,8 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
   const [uploading, setUploading] = useState<Set<UploadingKey>>(new Set())
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [generatingCode, setGeneratingCode] = useState<Set<string>>(new Set())
+  // Cache: itemId → { tipo → código } — evita gerar novo código ao trocar e voltar
+  const [codeCache, setCodeCache] = useState<Map<string, Partial<Record<MaterialItemTipo, string>>>>(new Map())
 
   // Sincroniza quando os dados chegam do Firebase pela primeira vez
   useEffect(() => {
@@ -151,7 +194,17 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
     if (!item || item.tipo === tipo) return
 
     if (NEEDS_CODE.includes(tipo)) {
-      // Sempre gera novo código ao selecionar AMPLIFICADOR ou MESA_DE_SOM
+      // Verifica cache: se já gerou código para este tipo neste item, reutiliza
+      const cached = codeCache.get(itemId)?.[tipo]
+      if (cached) {
+        setItems((prev) =>
+          prev.map((i) => (i.id === itemId ? { ...i, tipo, codigo: cached } : i))
+        )
+        setDirty(true)
+        return
+      }
+
+      // Gera novo código (apenas na primeira vez para este tipo)
       setGeneratingCode((prev) => new Set(prev).add(itemId))
       try {
         const code = await createEquipmentCode(
@@ -161,6 +214,12 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
           order.nomeIgreja,
           profile?.name ?? 'Instalador'
         )
+        // Armazena no cache para reutilizar se o usuário trocar e voltar
+        setCodeCache((prev) => {
+          const next = new Map(prev)
+          next.set(itemId, { ...next.get(itemId), [tipo]: code })
+          return next
+        })
         setItems((prev) =>
           prev.map((i) => (i.id === itemId ? { ...i, tipo, codigo: code } : i))
         )
@@ -175,7 +234,7 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
         })
       }
     } else {
-      // Tipos sem código: limpa o código existente
+      // Tipos sem código: limpa o código exibido mas mantém cache
       setItems((prev) =>
         prev.map((i) => (i.id === itemId ? { ...i, tipo, codigo: undefined } : i))
       )

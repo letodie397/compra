@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { Plus, Search, MapPin, Trash2, Filter, Pencil, ClipboardList } from 'lucide-react'
 import { useOrders, deleteOrder, updateOrder } from '../hooks/useData'
 import { useAuth } from '../contexts/AuthContext'
@@ -13,6 +13,7 @@ type StatusFilter = OrderStatus | '' | 'ativo'
 export function Orders() {
   const orders = useOrders()
   const { profile } = useAuth()
+  const navigate = useNavigate()
   const isInstalador = profile?.sector === 'instalador'
   const [searchParams] = useSearchParams()
   const [search, setSearch] = useState('')
@@ -133,7 +134,11 @@ export function Orders() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50">
+                  <tr
+                key={order.id}
+                className="hover:bg-gray-50 cursor-pointer"
+                onClick={() => navigate(isInstalador ? `/pedidos/${order.id}` : `/pedidos/${order.id}/editar`)}
+              >
                     <td className="px-4 lg:px-5 py-3.5">
                       <span className="font-semibold text-icm-red-700">#{order.numeroPedido}</span>
                     </td>
@@ -157,7 +162,7 @@ export function Orders() {
                     <td className="px-4 lg:px-5 py-3.5 text-gray-600 hidden lg:table-cell">
                       {order.technicianName ?? '—'}
                     </td>
-                    <td className="px-4 lg:px-5 py-3.5">
+                    <td className="px-4 lg:px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
                       {isInstalador ? (
                         <StatusBadge status={order.status} />
                       ) : (
@@ -184,7 +189,7 @@ export function Orders() {
                     <td className="px-4 lg:px-5 py-3.5 text-gray-500 whitespace-nowrap hidden sm:table-cell">
                       {new Date(order.createdAt).toLocaleDateString('pt-BR')}
                     </td>
-                    <td className="px-4 lg:px-5 py-3.5">
+                    <td className="px-4 lg:px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
                         <Link
                           to={`/pedidos/${order.id}`}

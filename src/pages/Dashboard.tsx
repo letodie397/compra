@@ -8,6 +8,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { useOrderStats, useOrders } from '../hooks/useData'
+import { useAuth } from '../contexts/AuthContext'
 import { StatusBadge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 
@@ -54,6 +55,8 @@ function StatCard({
 export function Dashboard() {
   const stats = useOrderStats()
   const orders = useOrders()
+  const { profile } = useAuth()
+  const isInstalador = profile?.sector === 'instalador'
 
   const recentOrders = orders?.slice(0, 5) ?? []
 
@@ -64,12 +67,14 @@ export function Dashboard() {
           <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-500 mt-1 text-sm">Visão geral dos pedidos e prestadores</p>
         </div>
-        <Link to="/pedidos/novo" className="shrink-0">
-          <Button>
-            <PlusCircle size={18} />
-            Novo Pedido
-          </Button>
-        </Link>
+        {!isInstalador && (
+          <Link to="/pedidos/novo" className="shrink-0">
+            <Button>
+              <PlusCircle size={18} />
+              Novo Pedido
+            </Button>
+          </Link>
+        )}
       </div>
 
       {stats && (
@@ -128,7 +133,7 @@ export function Dashboard() {
             {recentOrders.map((order) => (
               <Link
                 key={order.id}
-                to="/pedidos"
+                to={`/pedidos/${order.id}`}
                 className="px-4 lg:px-5 py-3.5 flex items-center gap-3 hover:bg-gray-50 transition-colors"
               >
                 <div className="flex-1 min-w-0">
