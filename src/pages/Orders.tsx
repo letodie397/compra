@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Search, MapPin, Trash2, Filter, Pencil, ClipboardList } from 'lucide-react'
 import { useOrders, deleteOrder, updateOrder } from '../hooks/useData'
+import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { StatusBadge } from '../components/ui/Badge'
 import { Select } from '../components/ui/Select'
@@ -11,6 +12,8 @@ type StatusFilter = OrderStatus | '' | 'ativo'
 
 export function Orders() {
   const orders = useOrders()
+  const { profile } = useAuth()
+  const isInstalador = profile?.sector === 'instalador'
   const [searchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
@@ -63,12 +66,14 @@ export function Orders() {
           <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Pedidos</h1>
           <p className="text-gray-500 mt-1 text-sm">Lista de todos os pedidos cadastrados</p>
         </div>
-        <Link to="/pedidos/novo">
-          <Button>
-            <Plus size={18} />
-            Novo Pedido
-          </Button>
-        </Link>
+        {!isInstalador && (
+          <Link to="/pedidos/novo">
+            <Button>
+              <Plus size={18} />
+              Novo Pedido
+            </Button>
+          </Link>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -153,22 +158,28 @@ export function Orders() {
                       {order.technicianName ?? '—'}
                     </td>
                     <td className="px-4 lg:px-5 py-3.5">
-                      <select
-                        value={order.status}
-                        onChange={(e) =>
-                          handleStatusChange(order.id, e.target.value as OrderStatus)
-                        }
-                        className="text-xs border-0 bg-transparent cursor-pointer focus:outline-none focus:ring-0 p-0"
-                      >
-                        <option value="pendente">Pendente</option>
-                        <option value="confirmado">Confirmado</option>
-                        <option value="em_andamento">Em andamento</option>
-                        <option value="concluido">Concluído</option>
-                        <option value="cancelado">Cancelado</option>
-                      </select>
-                      <div className="mt-1">
+                      {isInstalador ? (
                         <StatusBadge status={order.status} />
-                      </div>
+                      ) : (
+                        <>
+                          <select
+                            value={order.status}
+                            onChange={(e) =>
+                              handleStatusChange(order.id, e.target.value as OrderStatus)
+                            }
+                            className="text-xs border-0 bg-transparent cursor-pointer focus:outline-none focus:ring-0 p-0"
+                          >
+                            <option value="pendente">Pendente</option>
+                            <option value="confirmado">Confirmado</option>
+                            <option value="em_andamento">Em andamento</option>
+                            <option value="concluido">Concluído</option>
+                            <option value="cancelado">Cancelado</option>
+                          </select>
+                          <div className="mt-1">
+                            <StatusBadge status={order.status} />
+                          </div>
+                        </>
+                      )}
                     </td>
                     <td className="px-4 lg:px-5 py-3.5 text-gray-500 whitespace-nowrap hidden sm:table-cell">
                       {new Date(order.createdAt).toLocaleDateString('pt-BR')}
@@ -182,20 +193,24 @@ export function Orders() {
                         >
                           <ClipboardList size={16} />
                         </Link>
-                        <Link
-                          to={`/pedidos/${order.id}/editar`}
-                          className="p-2 text-gray-400 hover:text-icm-red-700 hover:bg-red-50 rounded-lg"
-                          title="Editar pedido"
-                        >
-                          <Pencil size={16} />
-                        </Link>
-                        <button
-                          onClick={() => handleDelete(order.id)}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                          title="Excluir pedido"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {!isInstalador && (
+                          <>
+                            <Link
+                              to={`/pedidos/${order.id}/editar`}
+                              className="p-2 text-gray-400 hover:text-icm-red-700 hover:bg-red-50 rounded-lg"
+                              title="Editar pedido"
+                            >
+                              <Pencil size={16} />
+                            </Link>
+                            <button
+                              onClick={() => handleDelete(order.id)}
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                              title="Excluir pedido"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

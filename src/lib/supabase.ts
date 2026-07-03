@@ -6,7 +6,7 @@ const SUPABASE_ANON_KEY =
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-export const STORAGE_BUCKET = 'PEDIDOS'
+export const STORAGE_BUCKET = 'pedidos'
 
 /** Retorna a URL pública de um arquivo no bucket */
 export function getPublicUrl(path: string): string {

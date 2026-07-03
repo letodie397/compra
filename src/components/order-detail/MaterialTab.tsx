@@ -133,8 +133,10 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
       if (item.imagemAntigo) deleteImage(item.imagemAntigo).catch(console.warn)
       if (item.imagemNovo) deleteImage(item.imagemNovo).catch(console.warn)
     }
-    setItems((prev) => prev.filter((i) => i.id !== id))
-    setDirty(true)
+    const updated = items.filter((i) => i.id !== id)
+    setItems(updated)
+    setDirty(false)
+    await onSave(updated)
   }
 
   function updateItem(id: string, field: keyof MaterialItem, value: unknown) {
@@ -145,11 +147,11 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
   }
 
   async function handleTipoChange(itemId: string, tipo: MaterialItemTipo) {
-    // Ao mudar para um tipo que gera código, gera imediatamente
     const item = items.find((i) => i.id === itemId)
-    if (!item) return
+    if (!item || item.tipo === tipo) return
 
-    if (NEEDS_CODE.includes(tipo) && !item.codigo) {
+    if (NEEDS_CODE.includes(tipo)) {
+      // Sempre gera novo código ao selecionar AMPLIFICADOR ou MESA_DE_SOM
       setGeneratingCode((prev) => new Set(prev).add(itemId))
       try {
         const code = await createEquipmentCode(
@@ -173,7 +175,10 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
         })
       }
     } else {
-      updateItem(itemId, 'tipo', tipo)
+      // Tipos sem código: limpa o código existente
+      setItems((prev) =>
+        prev.map((i) => (i.id === itemId ? { ...i, tipo, codigo: undefined } : i))
+      )
     }
     setDirty(true)
   }
