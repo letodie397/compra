@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Trash2, Save, ImagePlus, X, Package, Loader2, Tag, ZoomIn, CheckCircle2 } from 'lucide-react'
 import { uploadImage, deleteImage } from '../../utils/upload-image'
-import { createEquipmentCode, deleteEquipmentItem } from '../../firebase/repository'
+import { reserveEquipmentCode, commitEquipmentCode, deleteEquipmentItem } from '../../firebase/repository'
 import { useAuth } from '../../contexts/AuthContext'
 import type { MaterialItem, MaterialItemTipo, Order } from '../../types'
 
@@ -155,12 +155,27 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
   const [uploading, setUploading] = useState<Set<UploadingKey>>(new Set())
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [generatingCode, setGeneratingCode] = useState<Set<string>>(new Set())
-  // Cache: itemId → { tipo → código } — evita gerar novo código ao trocar e voltar
+  // Cache local: itemId → { tipo → código reservado } — nunca vai pro Firebase aqui
   const [codeCache, setCodeCache] = useState<Map<string, Partial<Record<MaterialItemTipo, string>>>>(new Map())
+  // Códigos já commitados no Firebase: itemId → código persistido
+  const [committedCodes, setCommittedCodes] = useState<Map<string, string>>(() => {
+    const m = new Map<string, string>()
+    initialMateriais.forEach((item) => {
+      if (item.codigo && NEEDS_CODE.includes(item.tipo as MaterialItemTipo)) m.set(item.id, item.codigo)
+    })
+    return m
+  })
 
   // Sincroniza quando os dados chegam do Firebase pela primeira vez
   useEffect(() => {
-    if (!dirty) setItems(initialMateriais)
+    if (!dirty) {
+      setItems(initialMateriais)
+      const m = new Map<string, string>()
+      initialMateriais.forEach((item) => {
+        if (item.codigo && NEEDS_CODE.includes(item.tipo as MaterialItemTipo)) m.set(item.id, item.codigo)
+      })
+      setCommittedCodes(m)
+    }
   }, [initialMateriais]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function addItem() {
@@ -176,6 +191,12 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
     if (item) {
       if (item.imagemAntigo) deleteImage(item.imagemAntigo).catch(console.warn)
       if (item.imagemNovo) deleteImage(item.imagemNovo).catch(console.warn)
+      // Se havia código commitado no Firebase, remove
+      const committed = committedCodes.get(id)
+      if (committed) {
+        deleteEquipmentItem(committed).catch(console.warn)
+        setCommittedCodes((prev) => { const n = new Map(prev); n.delete(id); return n })
+      }
     }
     const updated = items.filter((i) => i.id !== id)
     setItems(updated)
@@ -194,21 +215,8 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
     const item = items.find((i) => i.id === itemId)
     if (!item || item.tipo === tipo) return
 
-    // Se o item tinha um código gerado, deleta do Firebase antes de trocar
-    if (item.codigo && NEEDS_CODE.includes(item.tipo as MaterialItemTipo)) {
-      deleteEquipmentItem(item.codigo).catch(console.warn)
-      // Remove do cache também para forçar nova geração
-      setCodeCache((prev) => {
-        const next = new Map(prev)
-        const entry = { ...next.get(itemId) }
-        delete entry[item.tipo as MaterialItemTipo]
-        next.set(itemId, entry)
-        return next
-      })
-    }
-
     if (NEEDS_CODE.includes(tipo)) {
-      // Verifica cache: se já gerou código para este tipo neste item, reutiliza
+      // Reutiliza código já reservado no cache para este tipo
       const cached = codeCache.get(itemId)?.[tipo]
       if (cached) {
         setItems((prev) =>
@@ -218,16 +226,10 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
         return
       }
 
-      // Gera novo código
+      // Reserva novo código — APENAS no contador do Firebase, sem criar item na manutenção
       setGeneratingCode((prev) => new Set(prev).add(itemId))
       try {
-        const code = await createEquipmentCode(
-          tipo as 'AMPLIFICADOR' | 'MESA_DE_SOM',
-          orderId,
-          order.numeroPedido,
-          order.nomeIgreja,
-          profile?.name ?? 'Instalador'
-        )
+        const code = await reserveEquipmentCode(tipo as 'AMPLIFICADOR' | 'MESA_DE_SOM')
         setCodeCache((prev) => {
           const next = new Map(prev)
           next.set(itemId, { ...next.get(itemId), [tipo]: code })
@@ -237,7 +239,7 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
           prev.map((i) => (i.id === itemId ? { ...i, tipo, codigo: code } : i))
         )
       } catch {
-        setUploadError('Erro ao gerar código do equipamento')
+        setUploadError('Erro ao reservar código do equipamento')
         setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, tipo } : i)))
       } finally {
         setGeneratingCode((prev) => {
@@ -247,7 +249,7 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
         })
       }
     } else {
-      // Tipos sem código: limpa o código
+      // Tipos sem código: limpa o código exibido
       setItems((prev) =>
         prev.map((i) => (i.id === itemId ? { ...i, tipo, codigo: undefined } : i))
       )
@@ -286,6 +288,35 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
   }
 
   async function handleSave() {
+    // Sincroniza itens de equipamento no Firebase antes de salvar
+    const nextCommitted = new Map(committedCodes)
+
+    for (const item of items) {
+      const prev = committedCodes.get(item.id)
+
+      if (NEEDS_CODE.includes(item.tipo as MaterialItemTipo) && item.codigo) {
+        if (prev !== item.codigo) {
+          // Deleta código antigo se mudou
+          if (prev) await deleteEquipmentItem(prev).catch(console.warn)
+          // Persiste o código atual no Firebase (manutenção)
+          await commitEquipmentCode(
+            item.codigo,
+            item.tipo as 'AMPLIFICADOR' | 'MESA_DE_SOM',
+            orderId,
+            order.numeroPedido,
+            order.nomeIgreja,
+            profile?.name ?? 'Instalador'
+          )
+          nextCommitted.set(item.id, item.codigo)
+        }
+      } else if (prev) {
+        // Tipo mudou para um sem código — remove da manutenção
+        await deleteEquipmentItem(prev).catch(console.warn)
+        nextCommitted.delete(item.id)
+      }
+    }
+
+    setCommittedCodes(nextCommitted)
     await onSave(items)
     setDirty(false)
     setSavedOk(true)

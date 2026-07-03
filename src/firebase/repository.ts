@@ -282,30 +282,33 @@ const EQUIPMENT_PREFIX: Record<'AMPLIFICADOR' | 'MESA_DE_SOM', string> = {
 }
 
 /**
- * Gera um código único para um equipamento via transação atômica.
- * Cria o registro em equipmentCodes/items/{code} e retorna o código.
+ * Reserva o próximo código de equipamento (incrementa contador) mas NÃO cria o item no Firebase.
+ * Use commitEquipmentCode para persistir apenas quando o usuário confirmar o salvamento.
  */
-export async function createEquipmentCode(
+export async function reserveEquipmentCode(
+  type: 'AMPLIFICADOR' | 'MESA_DE_SOM'
+): Promise<string> {
+  const counterRef = ref(database, paths.equipmentCounter(type))
+  const result = await runTransaction(counterRef, (current: number | null) => (current ?? 0) + 1)
+  if (!result.committed || result.snapshot.val() === null) {
+    throw new Error('Erro ao reservar código de equipamento')
+  }
+  const counter = result.snapshot.val() as number
+  const prefix = EQUIPMENT_PREFIX[type]
+  return `${prefix}-${String(counter).padStart(4, '0')}`
+}
+
+/**
+ * Persiste o item de equipamento no Firebase (chamado apenas ao salvar o material).
+ */
+export async function commitEquipmentCode(
+  code: string,
   type: 'AMPLIFICADOR' | 'MESA_DE_SOM',
   orderId: string,
   orderNumero: string,
   nomeIgreja: string,
   instaladorName: string
-): Promise<string> {
-  const counterRef = ref(database, paths.equipmentCounter(type))
-
-  const result = await runTransaction(counterRef, (current: number | null) => {
-    return (current ?? 0) + 1
-  })
-
-  if (!result.committed || result.snapshot.val() === null) {
-    throw new Error('Erro ao gerar código de equipamento')
-  }
-
-  const counter = result.snapshot.val() as number
-  const prefix = EQUIPMENT_PREFIX[type]
-  const code = `${prefix}-${String(counter).padStart(4, '0')}`
-
+): Promise<void> {
   const item: EquipmentItem = {
     code,
     type,
@@ -315,9 +318,7 @@ export async function createEquipmentCode(
     instaladorName,
     entregue: false,
   }
-
   await set(ref(database, paths.equipmentItem(code)), item)
-  return code
 }
 
 export async function markEquipmentDelivered(code: string): Promise<void> {
