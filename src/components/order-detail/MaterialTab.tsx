@@ -319,6 +319,7 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
     setCommittedCodes(nextCommitted)
     await onSave(items)
     setDirty(false)
+    setExpandedId(null)
     setSavedOk(true)
     setTimeout(() => setSavedOk(false), 3000)
   }
