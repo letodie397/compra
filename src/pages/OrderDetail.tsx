@@ -145,6 +145,7 @@ export function OrderDetail() {
               {activeTab === 'material' && (
                 <MaterialTab
                   orderId={order.id}
+                  order={order}
                   materiais={serviceData?.materiais ?? []}
                   saving={saving}
                   onSave={saveMateriais}

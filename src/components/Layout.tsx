@@ -8,30 +8,59 @@ import {
   Menu,
   X,
   Church,
+  Wrench,
+  Settings,
+  LogOut,
+  ChevronDown,
 } from 'lucide-react'
 import { APP_VERSION } from '../config/version'
 import { SyncIndicator } from './SyncIndicator'
 import { SyncErrorBanner } from './SyncErrorBanner'
+import { useAuth } from '../contexts/AuthContext'
+import type { Sector } from '../types'
 
-const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/pedidos', icon: ClipboardList, label: 'Pedidos' },
-  { to: '/pedidos/novo', icon: PlusCircle, label: 'Novo' },
-  { to: '/prestadores', icon: Users, label: 'Prestadores' },
+const SECTOR_LABEL: Record<Sector, string> = {
+  instalador: 'Instalador',
+  setor_som: 'Setor de Som',
+  manutencao: 'Manutenção',
+  admin: 'Administrador',
+}
+
+interface NavItem {
+  to: string
+  icon: React.ElementType
+  label: string
+  sectors: Sector[]
+}
+
+const navItems: NavItem[] = [
+  { to: '/', icon: LayoutDashboard, label: 'Dashboard', sectors: ['instalador', 'setor_som', 'admin'] },
+  { to: '/pedidos', icon: ClipboardList, label: 'Pedidos', sectors: ['instalador', 'setor_som', 'admin'] },
+  { to: '/pedidos/novo', icon: PlusCircle, label: 'Novo Pedido', sectors: ['setor_som', 'admin'] },
+  { to: '/prestadores', icon: Users, label: 'Prestadores', sectors: ['setor_som', 'admin'] },
+  { to: '/manutencao', icon: Wrench, label: 'Manutenção', sectors: ['manutencao', 'admin'] },
+  { to: '/admin', icon: Settings, label: 'Admin', sectors: ['admin'] },
 ]
 
 function getPageTitle(pathname: string): string {
-  const item = navItems.find((n) =>
-    n.to === '/' ? pathname === '/' : pathname.startsWith(n.to)
-  )
-  if (item?.label === 'Novo') return 'Novo Pedido'
-  return item?.label ?? 'ICM Pedidos'
+  if (pathname === '/') return 'Dashboard'
+  if (pathname.startsWith('/pedidos/novo')) return 'Novo Pedido'
+  if (pathname.startsWith('/pedidos')) return 'Pedidos'
+  if (pathname.startsWith('/prestadores')) return 'Prestadores'
+  if (pathname.startsWith('/manutencao')) return 'Manutenção'
+  if (pathname.startsWith('/admin')) return 'Administração'
+  return 'ICM Pedidos'
 }
 
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const location = useLocation()
   const pageTitle = getPageTitle(location.pathname)
+  const { profile, signOut } = useAuth()
+
+  const sector = profile?.sector ?? 'setor_som'
+  const visibleNav = navItems.filter((item) => item.sectors.includes(sector))
 
   return (
     <div className="flex min-h-dvh bg-white">
@@ -66,13 +95,12 @@ export function Layout() {
         </div>
 
         <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-3 space-y-0.5">
-          {navItems.map((item) => (
+          {visibleNav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.to === '/'}
               onClick={() => setSidebarOpen(false)}
-              title={item.label === 'Novo' ? 'Novo Pedido' : item.label}
               className={({ isActive }) =>
                 `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   isActive
@@ -82,18 +110,28 @@ export function Layout() {
               }
             >
               <item.icon size={18} className="shrink-0" />
-              <span className="leading-snug">
-                {item.label === 'Novo' ? 'Novo Pedido' : item.label}
-              </span>
+              <span className="leading-snug">{item.label}</span>
             </NavLink>
           ))}
         </nav>
 
-        <div className="shrink-0 px-4 pt-3 border-t border-icm-red-700 sidebar-safe-bottom">
-          <p className="text-icm-red-300 text-[11px] text-center leading-snug">
-            Igreja Cristã Maranata
-          </p>
-          <div className="flex items-center justify-center gap-2 mt-2 pb-1">
+        {/* User info + logout */}
+        <div className="shrink-0 px-3 pt-3 pb-2 border-t border-icm-red-700 sidebar-safe-bottom space-y-2">
+          {profile && (
+            <div className="bg-icm-red-700/50 rounded-xl px-3 py-2">
+              <p className="text-white text-xs font-semibold truncate">{profile.name}</p>
+              <p className="text-icm-red-300 text-[11px]">{SECTOR_LABEL[profile.sector]}</p>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={signOut}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-icm-red-200 hover:bg-icm-red-700 hover:text-white text-sm transition-colors"
+          >
+            <LogOut size={16} />
+            Sair
+          </button>
+          <div className="flex items-center justify-between px-1 pb-1">
             <SyncIndicator inverted />
             <span className="text-icm-red-300/80 text-[11px]">v{APP_VERSION}</span>
           </div>
@@ -120,6 +158,36 @@ export function Layout() {
 
             <div className="flex items-center gap-2 shrink-0">
               <SyncIndicator />
+              {profile && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setUserMenuOpen((v) => !v)}
+                    className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-gray-100 text-sm text-gray-700 transition-colors"
+                  >
+                    <span className="font-medium truncate max-w-[100px]">{profile.name}</span>
+                    <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                      {SECTOR_LABEL[profile.sector]}
+                    </span>
+                    <ChevronDown size={14} className="text-gray-400" />
+                  </button>
+                  {userMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setUserMenuOpen(false)} />
+                      <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border border-gray-100 z-20 py-1">
+                        <button
+                          type="button"
+                          onClick={() => { setUserMenuOpen(false); signOut() }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <LogOut size={15} />
+                          Sair
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
               <span className="hidden sm:inline text-[10px] text-gray-400">v{APP_VERSION}</span>
             </div>
           </div>
@@ -132,9 +200,10 @@ export function Layout() {
           </div>
         </main>
 
+        {/* Bottom nav mobile — apenas itens visíveis do setor (max 4) */}
         <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 safe-bottom">
-          <div className="grid grid-cols-4 max-w-lg mx-auto">
-            {navItems.map((item) => {
+          <div className={`grid max-w-lg mx-auto`} style={{ gridTemplateColumns: `repeat(${Math.min(visibleNav.length, 4)}, 1fr)` }}>
+            {visibleNav.slice(0, 4).map((item) => {
               const isActive =
                 item.to === '/'
                   ? location.pathname === '/'
@@ -145,9 +214,7 @@ export function Layout() {
                   to={item.to}
                   end={item.to === '/'}
                   className={`flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] text-[11px] font-medium transition-colors ${
-                    isActive
-                      ? 'text-icm-red-700'
-                      : 'text-gray-500 active:text-icm-red-600'
+                    isActive ? 'text-icm-red-700' : 'text-gray-500 active:text-icm-red-600'
                   }`}
                 >
                   <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />

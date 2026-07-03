@@ -7,6 +7,10 @@ export const paths = {
   serviceData: (orderId: string) => `${ROOT}/serviceData/${orderId}`,
   signature: (orderId: string) => `${ROOT}/signatures/${orderId}`,
   meta: `${ROOT}/meta`,
+  user: (uid: string) => `${ROOT}/users/${uid}`,
+  equipmentCounter: (type: string) => `${ROOT}/equipmentCodes/counters/${type}`,
+  equipmentItems: `${ROOT}/equipmentCodes/items`,
+  equipmentItem: (code: string) => `${ROOT}/equipmentCodes/items/${code}`,
 } as const
 
 export function normalizePedidoKey(numero: string): string {

@@ -3,7 +3,7 @@ import { database } from './config'
 import { paths, normalizePedidoKey } from './paths'
 import { getClientId } from './client'
 import { stripUndefined } from './sanitize'
-import type { Technician, Order, ServiceArea, OrderServiceData } from '../types'
+import type { Technician, Order, ServiceArea, OrderServiceData, UserProfile, EquipmentItem } from '../types'
 
 export class DuplicateOrderError extends Error {
   constructor(numero: string) {
@@ -250,4 +250,85 @@ export async function migrateLocalData(
   if (Object.keys(updates).length > 0) {
     await update(ref(database), updates)
   }
+}
+
+// ── Perfis de usuário ─────────────────────────────────────────────────────────
+
+export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+  const snap = await get(ref(database, paths.user(uid)))
+  if (!snap.exists()) return null
+  return { uid, ...snap.val() } as UserProfile
+}
+
+export async function saveUserProfile(profile: UserProfile): Promise<void> {
+  const { uid, ...data } = profile
+  await set(ref(database, paths.user(uid)), data)
+}
+
+export async function listUserProfiles(): Promise<UserProfile[]> {
+  const snap = await get(ref(database, `icm/users`))
+  if (!snap.exists()) return []
+  return Object.entries(snap.val() as Record<string, Omit<UserProfile, 'uid'>>).map(
+    ([uid, data]) => ({ uid, ...data })
+  )
+}
+
+// ── Equipamentos com código rastreado ─────────────────────────────────────────
+
+const EQUIPMENT_PREFIX: Record<'AMPLIFICADOR' | 'MESA_DE_SOM', string> = {
+  AMPLIFICADOR: 'AMP',
+  MESA_DE_SOM: 'MESA',
+}
+
+/**
+ * Gera um código único para um equipamento via transação atômica.
+ * Cria o registro em equipmentCodes/items/{code} e retorna o código.
+ */
+export async function createEquipmentCode(
+  type: 'AMPLIFICADOR' | 'MESA_DE_SOM',
+  orderId: string,
+  orderNumero: string,
+  nomeIgreja: string,
+  instaladorName: string
+): Promise<string> {
+  const counterRef = ref(database, paths.equipmentCounter(type))
+
+  const result = await runTransaction(counterRef, (current: number | null) => {
+    return (current ?? 0) + 1
+  })
+
+  if (!result.committed || result.snapshot.val() === null) {
+    throw new Error('Erro ao gerar código de equipamento')
+  }
+
+  const counter = result.snapshot.val() as number
+  const prefix = EQUIPMENT_PREFIX[type]
+  const code = `${prefix}-${String(counter).padStart(4, '0')}`
+
+  const item: EquipmentItem = {
+    code,
+    type,
+    orderId,
+    orderNumero,
+    nomeIgreja,
+    instaladorName,
+    entregue: false,
+  }
+
+  await set(ref(database, paths.equipmentItem(code)), item)
+  return code
+}
+
+export async function markEquipmentDelivered(code: string): Promise<void> {
+  await update(ref(database, paths.equipmentItem(code)), {
+    entregue: true,
+    entregueEm: new Date().toISOString(),
+  })
+}
+
+export async function unmarkEquipmentDelivered(code: string): Promise<void> {
+  await update(ref(database, paths.equipmentItem(code)), {
+    entregue: false,
+    entregueEm: null,
+  })
 }

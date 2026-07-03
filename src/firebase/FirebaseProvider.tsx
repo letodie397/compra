@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, useMemo, type ReactNode } from 'react'
 import { ref, onValue, set, get } from 'firebase/database'
 import { database } from './config'
 import { paths } from './paths'
@@ -6,6 +6,7 @@ import { mapSnapshotToArray } from './sanitize'
 import { migrateLocalData } from './repository'
 import { getFirebaseErrorMessage } from './errors'
 import { db } from '../db'
+import { useAuth } from '../contexts/AuthContext'
 import type { Technician, Order, SyncStatus } from '../types'
 
 interface FirebaseContextValue {
@@ -38,8 +39,9 @@ function resolveSyncStatus(
 }
 
 export function FirebaseProvider({ children }: { children: ReactNode }) {
+  const { profile } = useAuth()
   const [technicians, setTechnicians] = useState<Technician[] | undefined>(undefined)
-  const [orders, setOrders] = useState<Order[] | undefined>(undefined)
+  const [allOrders, setAllOrders] = useState<Order[] | undefined>(undefined)
   const [techReady, setTechReady] = useState(false)
   const [ordersReady, setOrdersReady] = useState(false)
   const [online, setOnline] = useState(false)
@@ -101,7 +103,7 @@ export function FirebaseProvider({ children }: { children: ReactNode }) {
       ordersRef,
       (snap) => {
         if (cancelled) return
-        setOrders(
+        setAllOrders(
           mapSnapshotToArray<Order>(snap.val(), (a, b) =>
             b.createdAt.localeCompare(a.createdAt)
           )
@@ -131,6 +133,15 @@ export function FirebaseProvider({ children }: { children: ReactNode }) {
       unsubConn()
     }
   }, [])
+
+  // Filtra pedidos por empresa quando o usuário é instalador
+  const orders = useMemo(() => {
+    if (!allOrders) return undefined
+    if (profile?.sector === 'instalador' && profile.companyId) {
+      return allOrders.filter((o) => o.technicianId === profile.companyId)
+    }
+    return allOrders
+  }, [allOrders, profile?.sector, profile?.companyId])
 
   return (
     <FirebaseContext.Provider value={{ technicians, orders, syncStatus, syncError }}>

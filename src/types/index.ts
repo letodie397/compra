@@ -92,6 +92,38 @@ export interface ChurchSearchResult {
   needsSelection: boolean
 }
 
+// ── Auth / Setores ────────────────────────────────────────────────────────────
+
+export type Sector = 'instalador' | 'setor_som' | 'manutencao' | 'admin'
+
+export interface UserProfile {
+  uid: string
+  name: string
+  sector: Sector
+  /** technicianId vinculado (obrigatório para sector=instalador) */
+  companyId?: string
+}
+
+// ── Equipamentos rastreados ───────────────────────────────────────────────────
+
+export type MaterialItemTipo =
+  | 'AMPLIFICADOR'
+  | 'MESA_DE_SOM'
+  | 'MICROFONE'
+  | 'CAIXAS_DE_SOM'
+  | 'OUTRO'
+
+export interface EquipmentItem {
+  code: string
+  type: 'AMPLIFICADOR' | 'MESA_DE_SOM'
+  orderId: string
+  orderNumero: string
+  nomeIgreja: string
+  instaladorName: string
+  entregue: boolean
+  entregueEm?: string
+}
+
 // ── Service Data (Checklist / Material / Relatório) ──────────────────────────
 
 export const CHECKLIST_ITENS = [
@@ -124,6 +156,7 @@ export interface ChecklistResponsavel {
   nome: string
   telefone: string
   cpf: string
+  /** base64 da assinatura — salvo em nó separado (signatures/{orderId}), não no serviceData */
   assinatura: string
 }
 
@@ -140,8 +173,10 @@ export interface OrderChecklist {
 
 export interface MaterialItem {
   id: string
+  tipo: MaterialItemTipo
   nome: string
   quantidade: number
+  codigo?: string
   imagemAntigo: string | null
   imagemNovo: string | null
   justificativa: string

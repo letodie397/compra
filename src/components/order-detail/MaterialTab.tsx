@@ -1,10 +1,23 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Save, ImagePlus, X, Package, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Save, ImagePlus, X, Package, Loader2, Tag } from 'lucide-react'
 import { uploadImage, deleteImage } from '../../utils/upload-image'
-import type { MaterialItem } from '../../types'
+import { createEquipmentCode } from '../../firebase/repository'
+import { useAuth } from '../../contexts/AuthContext'
+import type { MaterialItem, MaterialItemTipo, Order } from '../../types'
+
+const TIPOS: { value: MaterialItemTipo; label: string }[] = [
+  { value: 'AMPLIFICADOR', label: 'Amplificador' },
+  { value: 'MESA_DE_SOM', label: 'Mesa de Som' },
+  { value: 'MICROFONE', label: 'Microfone' },
+  { value: 'CAIXAS_DE_SOM', label: 'Caixas de Som' },
+  { value: 'OUTRO', label: 'Outro' },
+]
+
+const NEEDS_CODE: MaterialItemTipo[] = ['AMPLIFICADOR', 'MESA_DE_SOM']
 
 interface MaterialTabProps {
   orderId: string
+  order: Order
   materiais: MaterialItem[]
   saving: boolean
   onSave: (materiais: MaterialItem[]) => Promise<void>
@@ -13,8 +26,10 @@ interface MaterialTabProps {
 function newItem(): MaterialItem {
   return {
     id: crypto.randomUUID(),
+    tipo: 'OUTRO',
     nome: '',
     quantidade: 1,
+    codigo: undefined,
     imagemAntigo: null,
     imagemNovo: null,
     justificativa: '',
@@ -90,17 +105,19 @@ function ImageUpload({
   )
 }
 
-export function MaterialTab({ orderId, materiais: initialMateriais, saving, onSave }: MaterialTabProps) {
+export function MaterialTab({ orderId, order, materiais: initialMateriais, saving, onSave }: MaterialTabProps) {
+  const { profile } = useAuth()
   const [items, setItems] = useState<MaterialItem[]>(initialMateriais)
   const [dirty, setDirty] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [uploading, setUploading] = useState<Set<UploadingKey>>(new Set())
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [generatingCode, setGeneratingCode] = useState<Set<string>>(new Set())
 
   // Sincroniza quando os dados chegam do Firebase pela primeira vez
   useEffect(() => {
     if (!dirty) setItems(initialMateriais)
   }, [initialMateriais]) // eslint-disable-line react-hooks/exhaustive-deps
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [uploading, setUploading] = useState<Set<UploadingKey>>(new Set())
-  const [uploadError, setUploadError] = useState<string | null>(null)
 
   function addItem() {
     const item = newItem()
@@ -124,6 +141,40 @@ export function MaterialTab({ orderId, materiais: initialMateriais, saving, onSa
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
     )
+    setDirty(true)
+  }
+
+  async function handleTipoChange(itemId: string, tipo: MaterialItemTipo) {
+    // Ao mudar para um tipo que gera código, gera imediatamente
+    const item = items.find((i) => i.id === itemId)
+    if (!item) return
+
+    if (NEEDS_CODE.includes(tipo) && !item.codigo) {
+      setGeneratingCode((prev) => new Set(prev).add(itemId))
+      try {
+        const code = await createEquipmentCode(
+          tipo as 'AMPLIFICADOR' | 'MESA_DE_SOM',
+          orderId,
+          order.numeroPedido,
+          order.nomeIgreja,
+          profile?.name ?? 'Instalador'
+        )
+        setItems((prev) =>
+          prev.map((i) => (i.id === itemId ? { ...i, tipo, codigo: code } : i))
+        )
+      } catch {
+        setUploadError('Erro ao gerar código do equipamento')
+        setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, tipo } : i)))
+      } finally {
+        setGeneratingCode((prev) => {
+          const next = new Set(prev)
+          next.delete(itemId)
+          return next
+        })
+      }
+    } else {
+      updateItem(itemId, 'tipo', tipo)
+    }
     setDirty(true)
   }
 
@@ -161,6 +212,8 @@ export function MaterialTab({ orderId, materiais: initialMateriais, saving, onSa
     await onSave(items)
     setDirty(false)
   }
+
+  const isBusy = uploading.size > 0 || generatingCode.size > 0
 
   return (
     <div className="space-y-4">
@@ -200,12 +253,14 @@ export function MaterialTab({ orderId, materiais: initialMateriais, saving, onSa
             const isExpanded = expandedId === item.id
             const upAntigo = uploading.has(`${item.id}-antigo`)
             const upNovo = uploading.has(`${item.id}-novo`)
+            const isGenerating = generatingCode.has(item.id)
+            const tipoLabel = TIPOS.find((t) => t.value === item.tipo)?.label ?? item.tipo
+
             return (
               <div
                 key={item.id}
                 className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden"
               >
-                {/* Header */}
                 <button
                   type="button"
                   onClick={() => setExpandedId(isExpanded ? null : item.id)}
@@ -217,18 +272,23 @@ export function MaterialTab({ orderId, materiais: initialMateriais, saving, onSa
                     </span>
                     <div>
                       <p className="text-sm font-semibold text-gray-800">
-                        {item.nome || 'Novo item'}
+                        {item.nome || tipoLabel}
                       </p>
-                      <p className="text-xs text-gray-500">Qtd: {item.quantidade}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-gray-500">Qtd: {item.quantidade}</span>
+                        {item.codigo && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-icm-red-700 bg-red-50 px-1.5 py-0.5 rounded-md">
+                            <Tag size={10} />
+                            {item.codigo}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        removeItem(item.id)
-                      }}
+                      onClick={(e) => { e.stopPropagation(); removeItem(item.id) }}
                       className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     >
                       <Trash2 size={15} />
@@ -237,19 +297,57 @@ export function MaterialTab({ orderId, materiais: initialMateriais, saving, onSa
                   </div>
                 </button>
 
-                {/* Expanded form */}
                 {isExpanded && (
                   <div className="px-5 pb-5 pt-1 border-t border-gray-50 space-y-4">
+                    {/* Tipo */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Tipo de equipamento *
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {TIPOS.map((t) => (
+                          <button
+                            key={t.value}
+                            type="button"
+                            disabled={isGenerating}
+                            onClick={() => handleTipoChange(item.id, t.value)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                              item.tipo === t.value
+                                ? 'bg-icm-red-600 text-white border-icm-red-600 shadow-sm'
+                                : 'bg-white text-gray-600 border-gray-300 hover:border-icm-red-400'
+                            } disabled:opacity-50`}
+                          >
+                            {isGenerating && item.tipo === t.value ? (
+                              <span className="flex items-center gap-1">
+                                <Loader2 size={11} className="animate-spin" />
+                                {t.label}
+                              </span>
+                            ) : t.label}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Código gerado */}
+                      {item.codigo && (
+                        <div className="mt-2 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                          <Tag size={14} className="text-amber-600 shrink-0" />
+                          <div>
+                            <p className="text-[11px] text-amber-700 font-medium">Código gerado (rastreamento)</p>
+                            <p className="text-sm font-mono font-bold text-amber-800">{item.codigo}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="sm:col-span-2">
                         <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Nome do item *
+                          Descrição adicional
                         </label>
                         <input
                           type="text"
                           value={item.nome}
                           onChange={(e) => updateItem(item.id, 'nome', e.target.value)}
-                          placeholder="Ex: Cabo HDMI, Projetor, Amplificador..."
+                          placeholder={`Ex: marca, modelo...`}
                           className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-icm-red-500 focus:border-icm-red-500"
                         />
                       </div>
@@ -261,9 +359,7 @@ export function MaterialTab({ orderId, materiais: initialMateriais, saving, onSa
                           type="number"
                           min={1}
                           value={item.quantidade}
-                          onChange={(e) =>
-                            updateItem(item.id, 'quantidade', Number(e.target.value))
-                          }
+                          onChange={(e) => updateItem(item.id, 'quantidade', Number(e.target.value))}
                           className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-icm-red-500 focus:border-icm-red-500"
                         />
                       </div>
@@ -309,13 +405,13 @@ export function MaterialTab({ orderId, materiais: initialMateriais, saving, onSa
       <button
         type="button"
         onClick={handleSave}
-        disabled={saving || !dirty || uploading.size > 0}
+        disabled={saving || !dirty || isBusy}
         className="flex items-center justify-center gap-2 px-5 py-2.5 bg-icm-red-600 text-white rounded-xl text-sm font-semibold hover:bg-icm-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {uploading.size > 0 ? (
+        {isBusy ? (
           <>
             <Loader2 size={16} className="animate-spin" />
-            Aguardando uploads...
+            {generatingCode.size > 0 ? 'Gerando código...' : 'Aguardando uploads...'}
           </>
         ) : (
           <>
