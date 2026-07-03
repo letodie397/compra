@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Plus, Trash2, Save, ImagePlus, X, Package, Loader2, Tag, ZoomIn, CheckCircle2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Plus, Trash2, Save, ImagePlus, X, Package, Loader2, Tag, ZoomIn, CheckCircle2, AlertCircle } from 'lucide-react'
 import { uploadImage, deleteImage } from '../../utils/upload-image'
 import { reserveEquipmentCode, commitEquipmentCode, deleteEquipmentItem } from '../../firebase/repository'
 import { useAuth } from '../../contexts/AuthContext'
@@ -173,7 +173,9 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
   const [items, setItems] = useState<MaterialItem[]>(initialMateriais)
   const [dirty, setDirty] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [validationAlert, setValidationAlert] = useState<string | null>(null)
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const saveAreaRef = useRef<HTMLDivElement>(null)
   const [uploading, setUploading] = useState<Set<UploadingKey>>(new Set())
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Map<string, MaterialFieldError[]>>(new Map())
@@ -201,12 +203,22 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
     }
   }, [initialMateriais]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  function toggleExpanded(id: string) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   function addItem() {
     const item = newItem()
     setItems((prev) => [...prev, item])
-    setExpandedId(item.id)
+    setExpandedIds((prev) => new Set(prev).add(item.id))
     setDirty(true)
     setFieldErrors(new Map())
+    setValidationAlert(null)
   }
 
   async function removeItem(id: string) {
@@ -244,6 +256,7 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
     )
     setDirty(true)
     if (field === 'justificativa') clearFieldError(id, 'justificativa')
+    setValidationAlert(null)
   }
 
   async function handleTipoChange(itemId: string, tipo: MaterialItemTipo) {
@@ -305,6 +318,7 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
       const url = await uploadImage(file, orderId, context)
       updateItem(itemId, field, url)
       clearFieldError(itemId, field)
+      setValidationAlert(null)
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Erro ao enviar imagem')
     } finally {
@@ -328,16 +342,23 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
       const invalid = validateMaterialItems(items)
       if (invalid.length > 0) {
         const errorMap = new Map(invalid.map(({ item, errors }) => [item.id, errors]))
+        const message =
+          invalid.length === 1
+            ? `Item ${invalid[0].index + 1}: preencha as duas fotos e a justificativa antes de salvar.`
+            : `${invalid.length} itens incompletos. Preencha as fotos e a justificativa de cada um.`
+
         setFieldErrors(errorMap)
-        setExpandedId(invalid[0].item.id)
-        setUploadError(
-          `Item ${invalid[0].index + 1}: preencha as duas fotos e a justificativa antes de salvar.`
-        )
+        setExpandedIds(new Set(invalid.map(({ item }) => item.id)))
+        setValidationAlert(message)
+        setUploadError(message)
+        setSavedOk(false)
+        saveAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
         return
       }
     }
 
     setFieldErrors(new Map())
+    setValidationAlert(null)
     setUploadError(null)
 
     // Sincroniza itens de equipamento no Firebase antes de salvar
@@ -372,7 +393,8 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
     try {
       await onSave(items)
       setDirty(false)
-      setExpandedId(null)
+      setExpandedIds(new Set())
+      setValidationAlert(null)
       setSavedOk(true)
       setTimeout(() => setSavedOk(false), 3000)
     } catch (err) {
@@ -417,7 +439,7 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
       ) : (
         <div className="space-y-3">
           {items.map((item, idx) => {
-            const isExpanded = expandedId === item.id
+            const isExpanded = expandedIds.has(item.id)
             const upAntigo = uploading.has(`${item.id}-antigo`)
             const upNovo = uploading.has(`${item.id}-novo`)
             const isGenerating = generatingCode.has(item.id)
@@ -436,7 +458,7 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
               >
                 <button
                   type="button"
-                  onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                  onClick={() => toggleExpanded(item.id)}
                   className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
@@ -584,11 +606,22 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div ref={saveAreaRef} className="space-y-3">
+        {validationAlert && (
+          <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
+            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Não foi possível salvar</p>
+              <p className="text-xs mt-0.5">{validationAlert}</p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving || !dirty || isBusy}
+          disabled={saving || isBusy || items.length === 0}
           className="flex items-center justify-center gap-2 px-5 py-2.5 bg-icm-red-600 text-white rounded-xl text-sm font-semibold hover:bg-icm-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isBusy ? (
@@ -610,6 +643,7 @@ export function MaterialTab({ orderId, order, materiais: initialMateriais, savin
             Materiais salvos!
           </span>
         )}
+        </div>
       </div>
     </div>
   )
