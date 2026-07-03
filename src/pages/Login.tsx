@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { Church, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
 import { signIn, signOut } from '../firebase/auth'
 import { useAuth } from '../contexts/AuthContext'
+import { APP_VERSION, APP_BUILD } from '../config/version'
 
 /** Converte "admin" → "admin@icm.com" | "foo@bar.com" → "foo@bar.com" */
 function toEmail(login: string): string {
@@ -105,6 +106,11 @@ export function Login() {
           <h1 className="text-white text-2xl font-bold">ICM Pedidos</h1>
           <p className="text-icm-red-200 text-sm mt-1">Espírito Santo</p>
         </div>
+
+        {/* Versão */}
+        <p className="text-center text-icm-red-300 text-[11px] mb-3 font-mono">
+          v{APP_VERSION} · build {APP_BUILD}
+        </p>
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-xl p-7">
