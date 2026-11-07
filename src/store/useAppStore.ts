@@ -28,6 +28,7 @@ interface AppState {
   setView: (view: AppView) => void
   setHydrated: (value: boolean) => void
   setSyncError: (error: string | null) => void
+  retrySync: () => void
   replaceFromRemote: (data: {
     products: Product[]
     lists: ShoppingList[]
@@ -74,7 +75,7 @@ function schedulePush(get: () => AppState, set: (partial: Partial<AppState>) => 
         lists: state.lists,
         activeListId: state.activeListId,
       })
-      set({ syncing: false })
+      set({ syncing: false, syncError: null })
     } catch (error) {
       set({
         syncing: false,
@@ -100,7 +101,14 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setHydrated: (value) => set({ hydrated: value }),
   setSyncError: (error) => set({ syncError: error }),
 
+  retrySync: () => {
+    schedulePush(get, set)
+  },
+
   replaceFromRemote: (data) => {
+    // Evita sobrescrever mudanças locais enquanto um save está em andamento.
+    if (get().syncing) return
+
     applyingRemote = true
     set({
       products: Array.isArray(data.products) ? data.products : [],

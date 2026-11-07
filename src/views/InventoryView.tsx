@@ -1,6 +1,7 @@
 import { Plus, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { ItemPicker } from '../components/ItemPicker'
 import { Modal } from '../components/Modal'
 import { ProductCard } from '../components/ProductCard'
 import { ProductForm } from '../components/ProductForm'
@@ -21,7 +22,7 @@ export function InventoryView() {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<CategoryId | 'all'>('all')
   const [showLowOnly, setShowLowOnly] = useState(false)
-  const [formOpen, setFormOpen] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Product | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -43,11 +44,6 @@ export function InventoryView() {
         return a.name.localeCompare(b.name, 'pt-BR')
       })
   }, [products, category, showLowOnly, query])
-
-  function openNew() {
-    setEditing(null)
-    setFormOpen(true)
-  }
 
   function makeShoppingList() {
     if (lowStock.length === 0) {
@@ -72,7 +68,7 @@ export function InventoryView() {
           <SaveStatus />
           <button
             type="button"
-            onClick={openNew}
+            onClick={() => setPickerOpen(true)}
             aria-label="Adicionar produto"
             className="grid h-9 w-9 place-items-center rounded-full bg-ink text-white"
           >
@@ -80,6 +76,14 @@ export function InventoryView() {
           </button>
         </div>
       </header>
+
+      <button
+        type="button"
+        onClick={() => setPickerOpen(true)}
+        className="h-10 w-full rounded-xl bg-ink text-sm font-semibold text-white"
+      >
+        Adicionar produto em casa
+      </button>
 
       {lowStock.length > 0 && (
         <button
@@ -155,7 +159,7 @@ export function InventoryView() {
           </p>
           <p className="mt-1 text-xs text-muted">
             {products.length === 0
-              ? 'Toque em + para adicionar.'
+              ? 'Toque em Adicionar produto em casa.'
               : 'Toque em Tudo para ver a casa inteira.'}
           </p>
         </div>
@@ -166,38 +170,53 @@ export function InventoryView() {
               key={product.id}
               product={product}
               onAdjust={(delta) => adjustQuantity(product.id, delta)}
-              onEdit={() => {
-                setEditing(product)
-                setFormOpen(true)
-              }}
+              onEdit={() => setEditing(product)}
               onDelete={() => setPendingDelete(product)}
             />
           ))}
         </div>
       )}
 
-      <Modal
-        open={formOpen}
-        title={editing ? 'Editar produto' : 'Novo produto'}
-        onClose={() => {
-          setFormOpen(false)
-          setEditing(null)
+      <ItemPicker
+        open={pickerOpen}
+        title="Colocar em casa"
+        products={products}
+        alreadyInList={[]}
+        onClose={() => setPickerOpen(false)}
+        onPick={(item) => {
+          const existing = products.find(
+            (p) => p.name.toLowerCase() === item.name.toLowerCase(),
+          )
+          if (existing) {
+            adjustQuantity(existing.id, item.quantity)
+            return
+          }
+          addProduct({
+            name: item.name,
+            category: item.category,
+            quantity: item.quantity,
+            minQuantity: 1,
+            unit: item.unit,
+          })
         }}
+      />
+
+      <Modal
+        open={editing !== null}
+        title="Editar produto"
+        onClose={() => setEditing(null)}
       >
-        <ProductForm
-          key={editing?.id ?? 'new'}
-          initial={editing ?? undefined}
-          submitLabel={editing ? 'Salvar' : 'Adicionar'}
-          onSubmit={(data) => {
-            if (editing) {
+        {editing && (
+          <ProductForm
+            key={editing.id}
+            initial={editing}
+            submitLabel="Salvar"
+            onSubmit={(data) => {
               updateProduct(editing.id, data)
-            } else {
-              addProduct(data)
-            }
-            setFormOpen(false)
-            setEditing(null)
-          }}
-        />
+              setEditing(null)
+            }}
+          />
+        )}
       </Modal>
 
       <ConfirmDialog

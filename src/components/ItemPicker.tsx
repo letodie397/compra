@@ -16,6 +16,7 @@ export interface PickedItem {
 
 interface ItemPickerProps {
   open: boolean
+  title?: string
   products: Product[]
   alreadyInList: string[]
   onClose: () => void
@@ -24,6 +25,7 @@ interface ItemPickerProps {
 
 export function ItemPicker({
   open,
+  title = 'Adicionar item',
   products,
   alreadyInList,
   onClose,
@@ -97,7 +99,7 @@ export function ItemPicker({
   }
 
   return (
-    <Modal open={open} title="Adicionar item" onClose={close}>
+    <Modal open={open} title={title} onClose={close}>
       <div className="space-y-3">
         <div className="relative">
           <Search
@@ -157,9 +159,9 @@ export function ItemPicker({
                 )
                 confirmPick(selected, product?.id)
               }}
-              className="mt-2.5 h-9 w-full rounded-xl bg-ink text-sm font-semibold text-white"
+              className="mt-2.5 h-10 w-full rounded-xl bg-ink text-sm font-semibold text-white"
             >
-              Colocar na lista
+              Confirmar
             </button>
           </div>
         )}

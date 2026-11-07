@@ -17,7 +17,7 @@ interface ProductFormProps {
 }
 
 const fieldClass =
-  'mt-1 h-10 w-full rounded-xl border border-line bg-paper px-3 text-sm outline-none focus:border-ink'
+  'mt-1 h-11 w-full rounded-xl border border-line bg-paper px-3 text-sm outline-none focus:border-ink'
 
 export function ProductForm({
   initial,
@@ -35,7 +35,7 @@ export function ProductForm({
 
   return (
     <form
-      className="space-y-3.5"
+      className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault()
         if (!name.trim()) return
@@ -61,58 +61,59 @@ export function ProductForm({
         />
       </label>
 
-      <fieldset>
-        <legend className="text-xs font-medium text-muted">Categoria</legend>
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {CATEGORIES.map((c) => (
-            <Chip
-              key={c.id}
-              selected={category === c.id}
-              onClick={() => setCategory(c.id)}
-              label={c.label}
-            />
-          ))}
-        </div>
-      </fieldset>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <p className="text-xs font-medium text-muted">Quantidade</p>
-          <div className="mt-1.5">
-            <Stepper
-              value={quantity}
-              decreaseLabel="Diminuir quantidade"
-              increaseLabel="Aumentar quantidade"
-              onChange={setQuantity}
-            />
-          </div>
-        </div>
-        <div>
-          <p className="text-xs font-medium text-muted">Avisar em</p>
-          <div className="mt-1.5">
-            <Stepper
-              value={minQuantity}
-              decreaseLabel="Diminuir o aviso"
-              increaseLabel="Aumentar o aviso"
-              onChange={setMinQuantity}
-            />
-          </div>
+      <div>
+        <p className="text-xs font-medium text-muted">Quantidade em casa</p>
+        <div className="mt-2">
+          <Stepper
+            value={quantity}
+            decreaseLabel="Diminuir quantidade"
+            increaseLabel="Aumentar quantidade"
+            onChange={setQuantity}
+          />
         </div>
       </div>
 
-      <fieldset>
-        <legend className="text-xs font-medium text-muted">Unidade</legend>
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {UNITS.map((u) => (
-            <Chip
-              key={u}
-              selected={unit === u}
-              onClick={() => setUnit(u)}
-              label={unitName(u)}
-            />
-          ))}
+      <div>
+        <p className="text-xs font-medium text-muted">Avisar quando chegar a</p>
+        <div className="mt-2">
+          <Stepper
+            value={minQuantity}
+            decreaseLabel="Diminuir o aviso"
+            increaseLabel="Aumentar o aviso"
+            onChange={setMinQuantity}
+          />
         </div>
-      </fieldset>
+      </div>
+
+      <label className="block">
+        <span className="text-xs font-medium text-muted">Categoria</span>
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value as CategoryId)}
+          className={fieldClass}
+        >
+          {CATEGORIES.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="block">
+        <span className="text-xs font-medium text-muted">Unidade</span>
+        <select
+          value={unit}
+          onChange={(e) => setUnit(e.target.value as Unit)}
+          className={fieldClass}
+        >
+          {UNITS.map((u) => (
+            <option key={u} value={u}>
+              {unitName(u)}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <label className="block">
         <span className="text-xs font-medium text-muted">Anotação</span>
@@ -126,33 +127,10 @@ export function ProductForm({
 
       <button
         type="submit"
-        className="h-10 w-full rounded-xl bg-ink text-sm font-semibold text-white"
+        className="h-11 w-full rounded-xl bg-ink text-sm font-semibold text-white"
       >
         {submitLabel}
       </button>
     </form>
-  )
-}
-
-function Chip({
-  selected,
-  onClick,
-  label,
-}: {
-  selected: boolean
-  onClick: () => void
-  label: string
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onClick}
-      className={`h-8 rounded-full px-3 text-xs font-semibold ${
-        selected ? 'bg-ink text-white' : 'bg-sand text-ink-soft'
-      }`}
-    >
-      {label}
-    </button>
   )
 }
