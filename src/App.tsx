@@ -3,7 +3,8 @@ import { BottomNav } from './components/BottomNav'
 import { useFirebaseSync } from './hooks/useFirebaseSync'
 import { useAppStore } from './store/useAppStore'
 import { InventoryView } from './views/InventoryView'
-import { ShoppingView } from './views/ShoppingView'
+import { ListEditView } from './views/ListEditView'
+import { ShopView } from './views/ShopView'
 
 export default function App() {
   useFirebaseSync()
@@ -35,7 +36,15 @@ export default function App() {
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg px-4 pt-5 pb-24">
-      <main>{view === 'estoque' ? <InventoryView /> : <ShoppingView />}</main>
+      <main>
+        {view === 'estoque' ? (
+          <InventoryView />
+        ) : view === 'comprar' ? (
+          <ShopView />
+        ) : (
+          <ListEditView />
+        )}
+      </main>
       <BottomNav
         view={view}
         onChange={setView}

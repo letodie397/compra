@@ -209,7 +209,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   setActiveList: (id) => {
-    set({ activeListId: id, view: 'lista' })
+    set({ activeListId: id })
     schedulePush(get, set)
   },
 

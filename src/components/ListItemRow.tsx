@@ -5,6 +5,7 @@ import { Stepper } from './Stepper'
 
 interface ListItemRowProps {
   item: ShoppingItem
+  mode: 'edit' | 'shop'
   onToggle: () => void
   onRemove: () => void
   onChangeQty: (qty: number) => void
@@ -12,36 +13,58 @@ interface ListItemRowProps {
 
 export function ListItemRow({
   item,
+  mode,
   onToggle,
   onRemove,
   onChangeQty,
 }: ListItemRowProps) {
-  return (
-    <article
-      className={`flex items-center gap-2.5 px-3 py-2.5 ${
-        item.checked ? 'bg-moss/60' : ''
-      }`}
-    >
+  if (mode === 'shop') {
+    return (
       <button
         type="button"
         onClick={onToggle}
-        aria-label={item.checked ? 'Desmarcar' : 'Marcar como comprado'}
-        className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border ${
-          item.checked
-            ? 'border-leaf bg-leaf text-white'
-            : 'border-line bg-white text-transparent'
+        className={`flex w-full items-center gap-3 px-3 py-3 text-left ${
+          item.checked ? 'bg-moss/60' : ''
         }`}
       >
-        <Check size={14} strokeWidth={3} />
-      </button>
-      <div className="min-w-0 flex-1">
-        <p
-          className={`truncate text-sm font-semibold ${
-            item.checked ? 'text-muted line-through' : 'text-ink'
+        <span
+          className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border ${
+            item.checked
+              ? 'border-leaf bg-leaf text-white'
+              : 'border-line bg-white text-transparent'
           }`}
         >
-          {item.name}
-        </p>
+          <Check size={16} strokeWidth={3} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span
+            className={`block truncate text-sm font-semibold ${
+              item.checked ? 'text-muted line-through' : 'text-ink'
+            }`}
+          >
+            {item.name}
+          </span>
+          <span className="block text-xs text-muted">
+            {item.quantity} {item.unit} · {categoryLabel(item.category)}
+          </span>
+        </span>
+        <span
+          className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${
+            item.checked
+              ? 'bg-leaf text-white'
+              : 'bg-warn-soft text-warn'
+          }`}
+        >
+          {item.checked ? 'Peguei' : 'Falta'}
+        </span>
+      </button>
+    )
+  }
+
+  return (
+    <article className="flex items-center gap-2.5 px-3 py-2.5">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
         <p className="truncate text-xs text-muted">
           {categoryLabel(item.category)} · {item.unit}
         </p>

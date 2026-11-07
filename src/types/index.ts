@@ -1,8 +1,15 @@
 export type CategoryId =
   | 'limpeza'
   | 'higiene'
-  | 'cozinha'
   | 'lavanderia'
+  | 'cozinha'
+  | 'mercearia'
+  | 'hortifruti'
+  | 'carnes'
+  | 'frios'
+  | 'bebidas'
+  | 'padaria'
+  | 'pets'
   | 'outros'
 
 export type Unit = 'un' | 'pct' | 'L' | 'ml' | 'kg' | 'g'
@@ -37,4 +44,10 @@ export interface ShoppingList {
   updatedAt: string
 }
 
-export type AppView = 'estoque' | 'lista'
+export type AppView = 'estoque' | 'lista' | 'comprar'
+
+export interface CatalogItem {
+  name: string
+  category: CategoryId
+  unit: Unit
+}

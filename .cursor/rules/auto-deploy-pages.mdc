@@ -1,0 +1,15 @@
+---
+description: Sempre publicar no GitHub Pages após editar
+alwaysApply: true
+---
+
+# Deploy automático no Pages
+
+Depois de qualquer edição concluída neste projeto:
+
+1. Faça commit das mudanças relevantes (sem arquivos `._*`, secrets ou `node_modules`).
+2. Faça `git push origin HEAD` para `main`.
+3. O workflow `Deploy GitHub Pages` publica sozinho em https://letodie397.github.io/Filippi/.
+4. Confirme o push e, se possível, diga que o Pages vai atualizar.
+
+Não peça confirmação para commit/push neste repositório: o usuário pediu envio automático.
