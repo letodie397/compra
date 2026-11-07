@@ -2,6 +2,7 @@ import { Plus, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { searchCatalog } from '../data/catalog'
 import { CATEGORIES, categoryLabel } from '../data/categories'
+import { foldText, textEquals, textIncludes } from '../lib/text'
 import type { CatalogItem, CategoryId, Product, Unit } from '../types'
 import { Modal } from './Modal'
 import { Stepper } from './Stepper'
@@ -37,7 +38,7 @@ export function ItemPicker({
   const [quantity, setQuantity] = useState(1)
 
   const listed = useMemo(
-    () => new Set(alreadyInList.map((n) => n.toLowerCase())),
+    () => new Set(alreadyInList.map((n) => foldText(n))),
     [alreadyInList],
   )
 
@@ -47,18 +48,16 @@ export function ItemPicker({
   )
 
   const stockMatches = useMemo(() => {
-    const q = query.trim().toLowerCase()
     return products
       .filter((p) => {
         if (category !== 'all' && p.category !== category) return false
-        if (!q) return true
-        return p.name.toLowerCase().includes(q)
+        return textIncludes(p.name, query)
       })
       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
   }, [products, query, category])
 
-  const exactInCatalog = catalogMatches.some(
-    (i) => i.name.toLowerCase() === query.trim().toLowerCase(),
+  const exactInCatalog = catalogMatches.some((i) =>
+    textEquals(i.name, query.trim()),
   )
   const canAddTyped = query.trim().length > 1 && !exactInCatalog
 
@@ -87,9 +86,7 @@ export function ItemPicker({
   }
 
   function pickCatalog(item: CatalogItem) {
-    const product = products.find(
-      (p) => p.name.toLowerCase() === item.name.toLowerCase(),
-    )
+    const product = products.find((p) => textEquals(p.name, item.name))
     if (selected?.name === item.name) {
       confirmPick(item, product?.id)
       return
@@ -99,93 +96,96 @@ export function ItemPicker({
   }
 
   return (
-    <Modal open={open} title={title} onClose={close}>
-      <div className="space-y-3">
-        <div className="relative">
-          <Search
-            size={15}
-            className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
-          />
-          <input
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value)
-              setSelected(null)
-            }}
-            placeholder="Digite para buscar"
-            autoFocus
-            className="h-10 w-full rounded-xl border border-line bg-paper pr-3 pl-9 text-sm outline-none focus:border-ink"
-          />
-        </div>
-
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
-          <FilterChip
-            active={category === 'all'}
-            label="Tudo"
-            onClick={() => setCategory('all')}
-          />
-          {CATEGORIES.map((c) => (
-            <FilterChip
-              key={c.id}
-              active={category === c.id}
-              label={c.label}
-              onClick={() => setCategory(c.id)}
+    <Modal open={open} title={title} onClose={close} fixedHeight>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="shrink-0 space-y-3 border-b border-line px-4 pt-3 pb-3">
+          <div className="relative">
+            <Search
+              size={15}
+              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
             />
-          ))}
-        </div>
+            <input
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                setSelected(null)
+              }}
+              placeholder="Digite para buscar"
+              autoFocus
+              enterKeyHint="search"
+              className="h-11 w-full rounded-xl border border-line bg-paper pr-3 pl-9 text-base outline-none focus:border-ink"
+            />
+          </div>
 
-        {selected && (
-          <div className="rounded-2xl bg-sand px-3 py-2.5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{selected.name}</p>
-                <p className="text-xs text-muted">
-                  {categoryLabel(selected.category)} · {selected.unit}
-                </p>
-              </div>
-              <Stepper
-                value={quantity}
-                min={1}
-                decreaseLabel="Diminuir"
-                increaseLabel="Aumentar"
-                onChange={setQuantity}
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
+            <FilterChip
+              active={category === 'all'}
+              label="Tudo"
+              onClick={() => setCategory('all')}
+            />
+            {CATEGORIES.map((c) => (
+              <FilterChip
+                key={c.id}
+                active={category === c.id}
+                label={c.label}
+                onClick={() => setCategory(c.id)}
               />
+            ))}
+          </div>
+
+          {selected && (
+            <div className="rounded-2xl bg-sand px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{selected.name}</p>
+                  <p className="text-xs text-muted">
+                    {categoryLabel(selected.category)} · {selected.unit}
+                  </p>
+                </div>
+                <Stepper
+                  value={quantity}
+                  min={1}
+                  decreaseLabel="Diminuir"
+                  increaseLabel="Aumentar"
+                  onChange={setQuantity}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const product = products.find((p) =>
+                    textEquals(p.name, selected.name),
+                  )
+                  confirmPick(selected, product?.id)
+                }}
+                className="mt-2.5 h-11 w-full rounded-xl bg-ink text-sm font-semibold text-white"
+              >
+                Confirmar
+              </button>
             </div>
+          )}
+
+          {canAddTyped && (
             <button
               type="button"
-              onClick={() => {
-                const product = products.find(
-                  (p) => p.name.toLowerCase() === selected.name.toLowerCase(),
-                )
-                confirmPick(selected, product?.id)
-              }}
-              className="mt-2.5 h-10 w-full rounded-xl bg-ink text-sm font-semibold text-white"
+              onClick={() =>
+                confirmPick({
+                  name: query.trim(),
+                  category: category === 'all' ? 'outros' : category,
+                  unit: 'un',
+                })
+              }
+              className="flex w-full items-center gap-2 rounded-xl border border-dashed border-line px-3 py-2.5 text-left"
             >
-              Confirmar
+              <Plus size={16} className="text-leaf" />
+              <span className="text-sm font-semibold">
+                Adicionar “{query.trim()}”
+              </span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
-        {canAddTyped && (
-          <button
-            type="button"
-            onClick={() =>
-              confirmPick({
-                name: query.trim(),
-                category: category === 'all' ? 'outros' : category,
-                unit: 'un',
-              })
-            }
-            className="flex w-full items-center gap-2 rounded-xl border border-dashed border-line px-3 py-2.5 text-left"
-          >
-            <Plus size={16} className="text-leaf" />
-            <span className="text-sm font-semibold">
-              Adicionar “{query.trim()}”
-            </span>
-          </button>
-        )}
-
-        <div className="max-h-[48vh] space-y-3 overflow-y-auto">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-3">
           {stockMatches.length > 0 && (
             <section>
               <p className="mb-1.5 text-[11px] font-semibold tracking-wide text-muted uppercase">
@@ -193,7 +193,7 @@ export function ItemPicker({
               </p>
               <div className="overflow-hidden rounded-2xl bg-card ring-1 ring-line">
                 {stockMatches.map((product) => {
-                  const inList = listed.has(product.name.toLowerCase())
+                  const inList = listed.has(foldText(product.name))
                   return (
                     <button
                       key={product.id}
@@ -206,7 +206,7 @@ export function ItemPicker({
                           unit: product.unit,
                         })
                       }
-                      className="flex w-full items-center justify-between gap-2 border-b border-line px-3 py-2.5 text-left last:border-b-0 disabled:opacity-45"
+                      className="flex w-full items-center justify-between gap-2 border-b border-line px-3 py-3 text-left last:border-b-0 disabled:opacity-45"
                     >
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-semibold">
@@ -238,7 +238,7 @@ export function ItemPicker({
             ) : (
               <div className="overflow-hidden rounded-2xl bg-card ring-1 ring-line">
                 {catalogMatches.map((item) => {
-                  const inList = listed.has(item.name.toLowerCase())
+                  const inList = listed.has(foldText(item.name))
                   const active = selected?.name === item.name
                   return (
                     <button
@@ -246,7 +246,7 @@ export function ItemPicker({
                       type="button"
                       disabled={inList}
                       onClick={() => pickCatalog(item)}
-                      className={`flex w-full items-center justify-between gap-2 border-b border-line px-3 py-2.5 text-left last:border-b-0 disabled:opacity-45 ${
+                      className={`flex w-full items-center justify-between gap-2 border-b border-line px-3 py-3 text-left last:border-b-0 disabled:opacity-45 ${
                         active ? 'bg-moss/70' : ''
                       }`}
                     >

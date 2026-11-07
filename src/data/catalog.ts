@@ -1,3 +1,4 @@
+import { textIncludes } from '../lib/text'
 import type { CatalogItem, CategoryId } from '../types'
 
 export const CATALOG: CatalogItem[] = [
@@ -387,10 +388,8 @@ export const CATALOG: CatalogItem[] = [
 ]
 
 export function searchCatalog(query: string, category: CategoryId | 'all') {
-  const q = query.trim().toLowerCase()
   return CATALOG.filter((item) => {
     if (category !== 'all' && item.category !== category) return false
-    if (!q) return true
-    return item.name.toLowerCase().includes(q)
+    return textIncludes(item.name, query)
   }).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
 }

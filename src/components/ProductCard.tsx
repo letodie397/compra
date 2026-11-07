@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from 'lucide-react'
+import { ListPlus, Pencil, Trash2 } from 'lucide-react'
 import { categoryLabel, unitPhrase } from '../data/categories'
 import type { Product } from '../types'
 import { Stepper } from './Stepper'
@@ -8,6 +8,7 @@ interface ProductCardProps {
   onAdjust: (delta: number) => void
   onEdit: () => void
   onDelete: () => void
+  onAddToList: () => void
 }
 
 export function ProductCard({
@@ -15,6 +16,7 @@ export function ProductCard({
   onAdjust,
   onEdit,
   onDelete,
+  onAddToList,
 }: ProductCardProps) {
   const low = product.quantity <= product.minQuantity
 
@@ -54,6 +56,14 @@ export function ProductCard({
           increaseLabel={`Aumentar ${product.name}`}
           onChange={(next) => onAdjust(next - product.quantity)}
         />
+        <button
+          type="button"
+          aria-label={`Mandar ${product.name} pra lista`}
+          onClick={onAddToList}
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-moss text-leaf"
+        >
+          <ListPlus size={15} />
+        </button>
         <button
           type="button"
           aria-label={`Editar ${product.name}`}

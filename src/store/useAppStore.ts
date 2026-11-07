@@ -4,6 +4,7 @@ import {
   retryCloudSync,
   schedulePersistAndSync,
 } from '../sync/engine'
+import { textEquals } from '../lib/text'
 import type {
   AppView,
   CategoryId,
@@ -333,11 +334,10 @@ export const useAppStore = create<AppState>()((set, get) => {
                 : p,
             )
           } else {
-            const existing = products.find(
-              (p) =>
-                p.name.toLowerCase() === item.name.toLowerCase() &&
-                p.category === item.category,
-            )
+          const existing = products.find(
+            (p) =>
+              textEquals(p.name, item.name) && p.category === item.category,
+          )
             if (existing) {
               products = products.map((p) =>
                 p.id === existing.id
