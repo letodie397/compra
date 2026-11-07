@@ -41,9 +41,10 @@ export function ShoppingView() {
     [lists, activeListId],
   )
 
-  const checkedCount = activeList?.items.filter((i) => i.checked).length ?? 0
+  const checkedCount =
+    activeList?.items?.filter((i) => i.checked).length ?? 0
   const pendingCount =
-    (activeList?.items.length ?? 0) - checkedCount
+    (activeList?.items?.length ?? 0) - checkedCount
 
   function openAddItem() {
     setName('')
@@ -118,7 +119,7 @@ export function ShoppingView() {
                 <span
                   className={`text-[11px] ${active ? 'text-white/65' : 'text-muted'}`}
                 >
-                  {list.items.length} itens
+                  {list.items?.length ?? 0} itens
                 </span>
               </button>
             )
@@ -174,7 +175,7 @@ export function ShoppingView() {
 
           <div className="space-y-2">
             <AnimatePresence mode="popLayout">
-              {activeList.items.length === 0 ? (
+              {(activeList.items?.length ?? 0) === 0 ? (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}

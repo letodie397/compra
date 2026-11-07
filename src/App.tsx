@@ -11,18 +11,12 @@ export default function App() {
 
   const view = useAppStore((s) => s.view)
   const setView = useAppStore((s) => s.setView)
-  const lists = useAppStore((s) => s.lists)
+  const lists = useAppStore((s) => s.lists) ?? []
   const activeListId = useAppStore((s) => s.activeListId)
-  const products = useAppStore((s) => s.products)
+  const products = useAppStore((s) => s.products) ?? []
   const hydrated = useAppStore((s) => s.hydrated)
   const syncing = useAppStore((s) => s.syncing)
   const syncError = useAppStore((s) => s.syncError)
-
-  const lowStockCount = products.filter((p) => p.quantity <= p.minQuantity)
-    .length
-  const activeList =
-    lists.find((l) => l.id === activeListId) ?? lists[0] ?? null
-  const listCount = activeList?.items.filter((i) => !i.checked).length ?? 0
 
   if (!hydrated) {
     return (
@@ -39,6 +33,13 @@ export default function App() {
       </div>
     )
   }
+
+  const lowStockCount = products.filter((p) => p.quantity <= p.minQuantity)
+    .length
+  const activeList =
+    lists.find((l) => l.id === activeListId) ?? lists[0] ?? null
+  const listCount =
+    activeList?.items?.filter((i) => !i.checked).length ?? 0
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg px-4">

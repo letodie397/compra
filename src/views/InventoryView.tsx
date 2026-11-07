@@ -14,7 +14,7 @@ import { useAppStore } from '../store/useAppStore'
 import type { CategoryId, Product } from '../types'
 
 export function InventoryView() {
-  const products = useAppStore((s) => s.products)
+  const products = useAppStore((s) => s.products) ?? []
   const addProduct = useAppStore((s) => s.addProduct)
   const updateProduct = useAppStore((s) => s.updateProduct)
   const deleteProduct = useAppStore((s) => s.deleteProduct)

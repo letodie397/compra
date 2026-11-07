@@ -103,9 +103,12 @@ export const useAppStore = create<AppState>()((set, get) => ({
   replaceFromRemote: (data) => {
     applyingRemote = true
     set({
-      products: data.products,
-      lists: data.lists,
-      activeListId: data.activeListId,
+      products: Array.isArray(data.products) ? data.products : [],
+      lists: (Array.isArray(data.lists) ? data.lists : []).map((list) => ({
+        ...list,
+        items: Array.isArray(list.items) ? list.items : [],
+      })),
+      activeListId: data.activeListId ?? null,
       hydrated: true,
       syncError: null,
     })
@@ -239,7 +242,10 @@ export const useAppStore = create<AppState>()((set, get) => ({
         l.id === listId
           ? {
               ...l,
-              items: [{ ...item, id: uid(), checked: false }, ...l.items],
+              items: [
+                { ...item, id: uid(), checked: false },
+                ...(l.items ?? []),
+              ],
               updatedAt: now(),
             }
           : l,
@@ -254,7 +260,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         l.id === listId
           ? {
               ...l,
-              items: l.items.map((i) =>
+              items: (l.items ?? []).map((i) =>
                 i.id === itemId ? { ...i, ...data } : i,
               ),
               updatedAt: now(),
@@ -271,7 +277,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         l.id === listId
           ? {
               ...l,
-              items: l.items.map((i) =>
+              items: (l.items ?? []).map((i) =>
                 i.id === itemId ? { ...i, checked: !i.checked } : i,
               ),
               updatedAt: now(),
@@ -288,7 +294,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         l.id === listId
           ? {
               ...l,
-              items: l.items.filter((i) => i.id !== itemId),
+              items: (l.items ?? []).filter((i) => i.id !== itemId),
               updatedAt: now(),
             }
           : l,
@@ -303,7 +309,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         l.id === listId
           ? {
               ...l,
-              items: l.items.filter((i) => !i.checked),
+              items: (l.items ?? []).filter((i) => !i.checked),
               updatedAt: now(),
             }
           : l,
@@ -316,7 +322,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const list = get().lists.find((l) => l.id === listId)
     if (!list) return
 
-    const checked = list.items.filter((i) => i.checked)
+    const checked = (list.items ?? []).filter((i) => i.checked)
     set((state) => {
       let products = [...state.products]
 
@@ -370,7 +376,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
           l.id === listId
             ? {
                 ...l,
-                items: l.items.filter((i) => !i.checked),
+                items: (l.items ?? []).filter((i) => !i.checked),
                 updatedAt: now(),
               }
             : l,
@@ -381,7 +387,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   getLowStockProducts: () =>
-    get().products.filter((p) => p.quantity <= p.minQuantity),
+    (get().products ?? []).filter((p) => p.quantity <= p.minQuantity),
 }))
 
 export type ProductInput = {

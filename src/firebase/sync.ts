@@ -6,7 +6,7 @@ import {
   type Unsubscribe,
 } from 'firebase/database'
 import { SEED_PRODUCTS } from '../data/seed'
-import type { Product, ShoppingList } from '../types'
+import type { Product, ShoppingItem, ShoppingList } from '../types'
 import { COMPRA_ROOT, database } from './config'
 
 export interface CompraRemoteState {
@@ -31,28 +31,68 @@ function createSeedProducts(): Product[] {
   }))
 }
 
+function asArray<T>(value: unknown): T[] {
+  if (!value) return []
+  if (Array.isArray(value)) return value.filter(Boolean) as T[]
+  if (typeof value === 'object') return Object.values(value) as T[]
+  return []
+}
+
+function normalizeList(raw: unknown): ShoppingList | null {
+  if (!raw || typeof raw !== 'object') return null
+  const list = raw as Partial<ShoppingList> & {
+    items?: Record<string, ShoppingItem> | ShoppingItem[] | null
+  }
+  if (!list.id || !list.name) return null
+
+  return {
+    id: list.id,
+    name: list.name,
+    createdAt: list.createdAt ?? now(),
+    updatedAt: list.updatedAt ?? now(),
+    items: asArray<ShoppingItem>(list.items).map((item) => ({
+      ...item,
+      checked: Boolean(item.checked),
+      quantity: Number(item.quantity) || 1,
+    })),
+  }
+}
+
+function normalizeProduct(raw: unknown): Product | null {
+  if (!raw || typeof raw !== 'object') return null
+  const product = raw as Partial<Product>
+  if (!product.id || !product.name) return null
+
+  return {
+    id: product.id,
+    name: product.name,
+    category: product.category ?? 'outros',
+    quantity: Number(product.quantity) || 0,
+    minQuantity: Number(product.minQuantity) || 0,
+    unit: product.unit ?? 'un',
+    notes: product.notes,
+    updatedAt: product.updatedAt ?? now(),
+  }
+}
+
 function normalizeState(raw: unknown): CompraRemoteState {
   if (!raw || typeof raw !== 'object') {
     return { products: [], lists: [], activeListId: null }
   }
 
   const data = raw as {
-    products?: Record<string, Product> | Product[]
-    lists?: Record<string, ShoppingList> | ShoppingList[]
+    products?: unknown
+    lists?: unknown
     activeListId?: string | null
   }
 
-  const products = Array.isArray(data.products)
-    ? data.products
-    : Object.values(data.products ?? {})
-
-  const lists = Array.isArray(data.lists)
-    ? data.lists
-    : Object.values(data.lists ?? {})
-
   return {
-    products,
-    lists,
+    products: asArray<unknown>(data.products)
+      .map(normalizeProduct)
+      .filter((p): p is Product => p !== null),
+    lists: asArray<unknown>(data.lists)
+      .map(normalizeList)
+      .filter((l): l is ShoppingList => l !== null),
     activeListId: data.activeListId ?? null,
   }
 }
@@ -63,9 +103,23 @@ export function toRemotePayload(state: CompraRemoteState) {
     products[product.id] = product
   }
 
-  const lists: Record<string, ShoppingList> = {}
+  const lists: Record<
+    string,
+    Omit<ShoppingList, 'items'> & { items: Record<string, ShoppingItem> }
+  > = {}
+
   for (const list of state.lists) {
-    lists[list.id] = list
+    const items: Record<string, ShoppingItem> = {}
+    for (const item of list.items ?? []) {
+      items[item.id] = item
+    }
+    lists[list.id] = {
+      id: list.id,
+      name: list.name,
+      createdAt: list.createdAt,
+      updatedAt: list.updatedAt,
+      items,
+    }
   }
 
   return {
@@ -81,7 +135,10 @@ export async function ensureRemoteSeed(): Promise<CompraRemoteState> {
   const snapshot = await get(root)
 
   if (snapshot.exists()) {
-    return normalizeState(snapshot.val())
+    const current = normalizeState(snapshot.val())
+    if (current.products.length > 0 || current.lists.length > 0) {
+      return current
+    }
   }
 
   const seeded: CompraRemoteState = {
