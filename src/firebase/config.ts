@@ -14,5 +14,5 @@ export const firebaseConfig = {
 export const firebaseApp = initializeApp(firebaseConfig)
 export const database = getDatabase(firebaseApp)
 
-/** Path sob `icm` para compatibilidade com as rules atuais do projeto Filippi. */
+/** Path sob `icm` para compatibilidade com as rules atuais do Firebase. */
 export const COMPRA_ROOT = 'icm/compra'

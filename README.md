@@ -1,4 +1,4 @@
-# Compra (Filippi)
+# Compra
 
 PWA de estoque doméstico e lista de compras — React + TypeScript + Tailwind + Firebase Realtime Database.
 
@@ -23,7 +23,7 @@ npm run dev
 npm run build:pages
 ```
 
-URL: https://letodie397.github.io/Filippi/
+URL: https://letodie397.github.io/compra/
 
 ## Firebase rules
 
