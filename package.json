@@ -1,49 +1,37 @@
 {
-  "name": "pedidos",
+  "name": "compra",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build:locations": "node scripts/build-locations.mjs",
-    "geocode:vila-velha": "node scripts/geocode-city.mjs \"Vila Velha\" && npm run build:locations",
-    "geocode:missing": "node scripts/geocode-missing.mjs && npm run build:locations",
-    "compare:cepbrasil": "node scripts/compare-cepbrasil.mjs",
-    "compare:maranata": "node scripts/compare-maranata.mjs",
-    "build:maranata": "node scripts/build-maranata.mjs",
-    "geocode:maranata": "node scripts/geocode-maranata.mjs",
-    "geocode:maranata:missing": "node scripts/geocode-maranata.mjs --missing",
-    "build:cepbrasil": "node scripts/build-cepbrasil-supplement.mjs",
-    "build:locations:full": "npm run build:cepbrasil && npm run build:locations && npm run build:maranata",
-    "geocode:centroids": "node scripts/generate-city-centroids.mjs && npm run build:locations",
-    "audit:locations": "node scripts/audit-locations.mjs",
-    "test": "npm run test:locations && npm run test:firebase",
-    "test:locations": "tsx scripts/tests/location-tests.mts",
-    "test:firebase": "tsx scripts/tests/firebase-tests.mts",
     "dev": "vite",
-    "build": "npm run build:locations && npm run build:maranata && tsc && vite build",
+    "build": "tsc -b && vite build",
     "build:pages": "node scripts/build-pages.mjs",
-    "preview": "vite preview"
-  },
-  "devDependencies": {
-    "@tailwindcss/vite": "^4.3.0",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.2",
-    "tailwindcss": "^4.3.0",
-    "tsx": "^4.22.4",
-    "typescript": "~6.0.2",
-    "vite": "^8.0.12",
-    "vite-plugin-pwa": "^1.3.0"
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "deploy:rules": "npx firebase-tools deploy --only database"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.108.2",
-    "brazilian-geographic-data": "^2.0.0",
-    "dexie": "^4.4.3",
-    "firebase": "^12.14.0",
-    "jspdf": "^4.2.1",
-    "lucide-react": "^1.17.0",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "react-router-dom": "^7.17.0"
+    "firebase": "^13.2.0",
+    "framer-motion": "^14.10.1",
+    "lucide-react": "^1.70.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zustand": "^5.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "oxlint": "^1.90.0",
+    "tailwindcss": "^4.3.5",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.6",
+    "vite-plugin-pwa": "^2.0.0"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-darwin-arm64": "^4.68.0"
   }
 }

@@ -1,86 +1,93 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider } from './contexts/AuthContext'
-import { FirebaseProvider } from './firebase/FirebaseProvider'
-import { Layout } from './components/Layout'
-import { ProtectedRoute } from './components/ProtectedRoute'
-import { Login } from './pages/Login'
-import { Dashboard } from './pages/Dashboard'
-import { Orders } from './pages/Orders'
-import { NewOrder } from './pages/NewOrder'
-import { EditOrder } from './pages/EditOrder'
-import { OrderDetail } from './pages/OrderDetail'
-import { Technicians } from './pages/Technicians'
-import { Manutencao } from './pages/Manutencao'
-import { Admin } from './pages/Admin'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Cloud, CloudOff, LoaderCircle } from 'lucide-react'
+import { BottomNav } from './components/BottomNav'
+import { useFirebaseSync } from './hooks/useFirebaseSync'
+import { useAppStore } from './store/useAppStore'
+import { InventoryView } from './views/InventoryView'
+import { ShoppingView } from './views/ShoppingView'
 
-export function App() {
+export default function App() {
+  useFirebaseSync()
+
+  const view = useAppStore((s) => s.view)
+  const setView = useAppStore((s) => s.setView)
+  const lists = useAppStore((s) => s.lists)
+  const activeListId = useAppStore((s) => s.activeListId)
+  const products = useAppStore((s) => s.products)
+  const hydrated = useAppStore((s) => s.hydrated)
+  const syncing = useAppStore((s) => s.syncing)
+  const syncError = useAppStore((s) => s.syncError)
+
+  const lowStockCount = products.filter((p) => p.quantity <= p.minQuantity)
+    .length
+  const activeList =
+    lists.find((l) => l.id === activeListId) ?? lists[0] ?? null
+  const listCount = activeList?.items.filter((i) => !i.checked).length ?? 0
+
+  if (!hydrated) {
+    return (
+      <div className="grid min-h-dvh place-items-center">
+        <div className="text-center">
+          <p className="font-display text-3xl font-extrabold tracking-tight text-ink">
+            Compra
+          </p>
+          <p className="mt-2 flex items-center justify-center gap-2 text-sm text-muted">
+            <LoaderCircle size={14} className="animate-spin" />
+            Sincronizando com o Firebase...
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '') || undefined}>
-      <AuthProvider>
-        <FirebaseProvider>
-        <Routes>
-          {/* Rota pública */}
-          <Route path="/login" element={<Login />} />
+    <div className="mx-auto min-h-dvh max-w-lg px-4">
+      <div className="safe-top sticky top-0 z-30 -mx-4 mb-2 flex items-center justify-between gap-2 px-4 py-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-muted ring-1 ring-line backdrop-blur">
+          {syncError ? (
+            <>
+              <CloudOff size={12} className="text-warn" />
+              Offline / erro
+            </>
+          ) : syncing ? (
+            <>
+              <LoaderCircle size={12} className="animate-spin text-leaf" />
+              Salvando...
+            </>
+          ) : (
+            <>
+              <Cloud size={12} className="text-leaf" />
+              Firebase sync
+            </>
+          )}
+        </span>
+        {syncError && (
+          <span className="truncate text-[11px] font-medium text-warn">
+            {syncError}
+          </span>
+        )}
+      </div>
 
-          {/* Rotas do setor de manutenção (layout próprio) */}
-          <Route
-            path="/manutencao"
-            element={
-              <ProtectedRoute allowedSectors={['manutencao', 'admin']}>
-                <Layout />
-              </ProtectedRoute>
-            }
+      <main className="pb-28">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={view}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.22 }}
           >
-            <Route index element={<Manutencao />} />
-          </Route>
+            {view === 'estoque' ? <InventoryView /> : <ShoppingView />}
+          </motion.div>
+        </AnimatePresence>
+      </main>
 
-          {/* Rotas do admin */}
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute allowedSectors={['admin']}>
-                <Layout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<Admin />} />
-          </Route>
-
-          {/* Rotas principais (instalador + setor_som + admin) */}
-          <Route
-            element={
-              <ProtectedRoute allowedSectors={['instalador', 'setor_som', 'admin']}>
-                <Layout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<Dashboard />} />
-            <Route path="pedidos" element={<Orders />} />
-            <Route
-              path="pedidos/novo"
-              element={
-                <ProtectedRoute allowedSectors={['setor_som', 'admin']}>
-                  <NewOrder />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="pedidos/:id/editar" element={<EditOrder />} />
-            <Route path="pedidos/:id" element={<OrderDetail />} />
-            <Route
-              path="prestadores"
-              element={
-                <ProtectedRoute allowedSectors={['setor_som', 'admin']}>
-                  <Technicians />
-                </ProtectedRoute>
-              }
-            />
-          </Route>
-
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-        </FirebaseProvider>
-      </AuthProvider>
-    </BrowserRouter>
+      <BottomNav
+        view={view}
+        onChange={setView}
+        listCount={listCount}
+        lowStockCount={lowStockCount}
+      />
+    </div>
   )
 }

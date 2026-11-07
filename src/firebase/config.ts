@@ -1,6 +1,5 @@
 import { initializeApp } from 'firebase/app'
 import { getDatabase } from 'firebase/database'
-import { getAuth } from 'firebase/auth'
 
 export const firebaseConfig = {
   apiKey: 'AIzaSyAb8U53OX0BfaAL3hJ53yDClOupxtnpeKM',
@@ -14,4 +13,6 @@ export const firebaseConfig = {
 
 export const firebaseApp = initializeApp(firebaseConfig)
 export const database = getDatabase(firebaseApp)
-export const auth = getAuth(firebaseApp)
+
+/** Path sob `icm` para compatibilidade com as rules atuais do projeto Filippi. */
+export const COMPRA_ROOT = 'icm/compra'

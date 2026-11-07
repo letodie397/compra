@@ -12,10 +12,6 @@ dist
 dist-ssr
 *.local
 
-# Relatórios gerados (npm run compare:cepbrasil)
-data/cepbrasil-comparison.json
-data/maranata-comparison.json
-
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

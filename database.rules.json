@@ -2,7 +2,11 @@
   "rules": {
     "icm": {
       ".read": true,
-      ".write": true
+      ".write": true,
+      "compra": {
+        ".read": true,
+        ".write": true
+      }
     }
   }
 }

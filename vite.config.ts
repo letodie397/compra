@@ -1,48 +1,43 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const base = process.env.VITE_BASE_PATH || '/'
 
 export default defineConfig({
   base,
-  server: {
-    watch: {
-      ignored: ['**/data/**', '**/scripts/**'],
-    },
-  },
   plugins: [
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'prompt',
-      devOptions: {
-        enabled: false,
-      },
-      includeAssets: ['favicon.svg'],
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'ICM Pedidos - Espírito Santo',
-        short_name: 'ICM Pedidos',
-        description: 'Sistema de gestão de pedidos e prestadores de serviço - Igreja Cristã Maranata',
-        theme_color: '#B91C1C',
-        background_color: '#FFFFFF',
+        name: 'Compra — Estoque & Lista',
+        short_name: 'Compra',
+        description:
+          'Controle o estoque de casa e gere listas de compra em segundos.',
+        theme_color: '#1a3d2e',
+        background_color: '#f3f6f2',
         display: 'standalone',
         orientation: 'portrait',
+        lang: 'pt-BR',
         start_url: base,
+        scope: base,
         icons: [
           {
-            src: '/pwa-192.png',
+            src: 'pwa-192.png',
             sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: '/pwa-512.png',
+            src: 'pwa-512.png',
             sizes: '512x512',
             type: 'image/png',
           },
           {
-            src: '/pwa-512.png',
+            src: 'pwa-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
