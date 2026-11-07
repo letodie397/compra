@@ -1,10 +1,4 @@
-import {
-  get,
-  onValue,
-  ref,
-  set,
-  type Unsubscribe,
-} from 'firebase/database'
+import { get, goOffline, goOnline, ref, set } from 'firebase/database'
 import { SEED_PRODUCTS } from '../data/seed'
 import type { Product, ShoppingItem, ShoppingList } from '../types'
 import { COMPRA_ROOT, database } from './config'
@@ -13,6 +7,7 @@ export interface CompraRemoteState {
   products: Product[]
   lists: ShoppingList[]
   activeListId: string | null
+  updatedAt?: string
 }
 
 function uid(): string {
@@ -50,11 +45,19 @@ function normalizeList(raw: unknown): ShoppingList | null {
     name: list.name,
     createdAt: list.createdAt ?? now(),
     updatedAt: list.updatedAt ?? now(),
-    items: asArray<ShoppingItem>(list.items).map((item) => ({
-      ...item,
-      checked: Boolean(item.checked),
-      quantity: Number(item.quantity) || 1,
-    })),
+    items: asArray<ShoppingItem>(list.items).map((item) => {
+      const normalized: ShoppingItem = {
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        quantity: Number(item.quantity) || 1,
+        unit: item.unit,
+        checked: Boolean(item.checked),
+      }
+      if (item.productId) normalized.productId = item.productId
+      if (item.notes) normalized.notes = item.notes
+      return normalized
+    }),
   }
 }
 
@@ -87,7 +90,9 @@ function stripUndefined<T>(value: T): T {
   }
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {}
-    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    for (const [key, entry] of Object.entries(
+      value as Record<string, unknown>,
+    )) {
       if (entry === undefined) continue
       out[key] = stripUndefined(entry)
     }
@@ -96,7 +101,7 @@ function stripUndefined<T>(value: T): T {
   return value
 }
 
-function normalizeState(raw: unknown): CompraRemoteState {
+export function normalizeState(raw: unknown): CompraRemoteState {
   if (!raw || typeof raw !== 'object') {
     return { products: [], lists: [], activeListId: null }
   }
@@ -105,6 +110,7 @@ function normalizeState(raw: unknown): CompraRemoteState {
     products?: unknown
     lists?: unknown
     activeListId?: string | null
+    updatedAt?: string
   }
 
   return {
@@ -115,15 +121,11 @@ function normalizeState(raw: unknown): CompraRemoteState {
       .map(normalizeList)
       .filter((l): l is ShoppingList => l !== null),
     activeListId: data.activeListId ?? null,
+    updatedAt: data.updatedAt,
   }
 }
 
 export function toRemotePayload(state: CompraRemoteState) {
-  const products: Record<string, Product> = {}
-  for (const product of state.products) {
-    products[product.id] = product
-  }
-
   const lists: Record<
     string,
     Omit<ShoppingList, 'items'> & { items: Record<string, ShoppingItem> }
@@ -154,7 +156,7 @@ export function toRemotePayload(state: CompraRemoteState) {
   }
 
   const cleanProducts: Record<string, Product> = {}
-  for (const [id, product] of Object.entries(products)) {
+  for (const product of state.products) {
     const clean: Product = {
       id: product.id,
       name: product.name,
@@ -165,7 +167,7 @@ export function toRemotePayload(state: CompraRemoteState) {
       updatedAt: product.updatedAt,
     }
     if (product.notes) clean.notes = product.notes
-    cleanProducts[id] = clean
+    cleanProducts[product.id] = clean
   }
 
   return stripUndefined({
@@ -176,15 +178,52 @@ export function toRemotePayload(state: CompraRemoteState) {
   })
 }
 
-export async function ensureRemoteSeed(): Promise<CompraRemoteState> {
-  const root = ref(database, COMPRA_ROOT)
-  const snapshot = await get(root)
+/** Hash estável sem updatedAt — evita rewrite idêntico no Firebase. */
+export function stateHash(state: CompraRemoteState): string {
+  return JSON.stringify({
+    products: state.products
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        quantity: p.quantity,
+        minQuantity: p.minQuantity,
+        unit: p.unit,
+        notes: p.notes ?? '',
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+    lists: state.lists
+      .map((l) => ({
+        id: l.id,
+        name: l.name,
+        items: (l.items ?? [])
+          .map((i) => ({
+            id: i.id,
+            productId: i.productId ?? '',
+            name: i.name,
+            category: i.category,
+            quantity: i.quantity,
+            unit: i.unit,
+            checked: i.checked,
+            notes: i.notes ?? '',
+          }))
+          .sort((a, b) => a.id.localeCompare(b.id)),
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+    activeListId: state.activeListId,
+  })
+}
 
-  if (snapshot.exists()) {
-    const current = normalizeState(snapshot.val())
-    if (current.products.length > 0 || current.lists.length > 0) {
-      return current
-    }
+export async function fetchRemoteOnce(): Promise<CompraRemoteState | null> {
+  const snapshot = await get(ref(database, COMPRA_ROOT))
+  if (!snapshot.exists()) return null
+  return normalizeState(snapshot.val())
+}
+
+export async function ensureRemoteSeedIfEmpty(): Promise<CompraRemoteState | null> {
+  const current = await fetchRemoteOnce()
+  if (current && (current.products.length > 0 || current.lists.length > 0)) {
+    return current
   }
 
   const seeded: CompraRemoteState = {
@@ -193,28 +232,21 @@ export async function ensureRemoteSeed(): Promise<CompraRemoteState> {
     activeListId: null,
   }
 
-  await set(root, toRemotePayload(seeded))
+  await set(ref(database, COMPRA_ROOT), toRemotePayload(seeded))
   return seeded
 }
 
-export function subscribeCompra(
-  onChange: (state: CompraRemoteState) => void,
-  onError?: (error: Error) => void,
-): Unsubscribe {
-  const root = ref(database, COMPRA_ROOT)
-  return onValue(
-    root,
-    (snapshot) => {
-      if (!snapshot.exists()) {
-        onChange({ products: [], lists: [], activeListId: null })
-        return
-      }
-      onChange(normalizeState(snapshot.val()))
-    },
-    (error) => onError?.(error),
-  )
+export async function pushCompraState(state: CompraRemoteState): Promise<string> {
+  const payload = toRemotePayload(state)
+  await set(ref(database, COMPRA_ROOT), payload)
+  return stateHash(state)
 }
 
-export async function pushCompraState(state: CompraRemoteState): Promise<void> {
-  await set(ref(database, COMPRA_ROOT), toRemotePayload(state))
+export function setFirebaseConnection(online: boolean): void {
+  try {
+    if (online) goOnline(database)
+    else goOffline(database)
+  } catch {
+    // ignore
+  }
 }

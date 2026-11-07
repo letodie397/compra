@@ -1,13 +1,13 @@
 import { LoaderCircle } from 'lucide-react'
 import { BottomNav } from './components/BottomNav'
-import { useFirebaseSync } from './hooks/useFirebaseSync'
+import { useAppSync } from './hooks/useAppSync'
 import { useAppStore } from './store/useAppStore'
 import { InventoryView } from './views/InventoryView'
 import { ListEditView } from './views/ListEditView'
 import { ShopView } from './views/ShopView'
 
 export default function App() {
-  useFirebaseSync()
+  useAppSync()
 
   const view = useAppStore((s) => s.view)
   const setView = useAppStore((s) => s.setView)
