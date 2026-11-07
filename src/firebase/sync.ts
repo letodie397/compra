@@ -63,16 +63,37 @@ function normalizeProduct(raw: unknown): Product | null {
   const product = raw as Partial<Product>
   if (!product.id || !product.name) return null
 
-  return {
+  const productNormalized: Product = {
     id: product.id,
     name: product.name,
     category: product.category ?? 'outros',
     quantity: Number(product.quantity) || 0,
     minQuantity: Number(product.minQuantity) || 0,
     unit: product.unit ?? 'un',
-    notes: product.notes,
     updatedAt: product.updatedAt ?? now(),
   }
+
+  if (typeof product.notes === 'string' && product.notes.trim()) {
+    productNormalized.notes = product.notes
+  }
+
+  return productNormalized
+}
+
+/** Firebase RTDB rejeita `undefined` em qualquer nível do JSON. */
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefined(item)) as T
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      if (entry === undefined) continue
+      out[key] = stripUndefined(entry)
+    }
+    return out as T
+  }
+  return value
 }
 
 function normalizeState(raw: unknown): CompraRemoteState {
@@ -111,7 +132,17 @@ export function toRemotePayload(state: CompraRemoteState) {
   for (const list of state.lists) {
     const items: Record<string, ShoppingItem> = {}
     for (const item of list.items ?? []) {
-      items[item.id] = item
+      const normalizedItem: ShoppingItem = {
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        quantity: item.quantity,
+        unit: item.unit,
+        checked: Boolean(item.checked),
+      }
+      if (item.productId) normalizedItem.productId = item.productId
+      if (item.notes) normalizedItem.notes = item.notes
+      items[item.id] = normalizedItem
     }
     lists[list.id] = {
       id: list.id,
@@ -122,12 +153,27 @@ export function toRemotePayload(state: CompraRemoteState) {
     }
   }
 
-  return {
-    products,
+  const cleanProducts: Record<string, Product> = {}
+  for (const [id, product] of Object.entries(products)) {
+    const clean: Product = {
+      id: product.id,
+      name: product.name,
+      category: product.category,
+      quantity: product.quantity,
+      minQuantity: product.minQuantity,
+      unit: product.unit,
+      updatedAt: product.updatedAt,
+    }
+    if (product.notes) clean.notes = product.notes
+    cleanProducts[id] = clean
+  }
+
+  return stripUndefined({
+    products: cleanProducts,
     lists,
     activeListId: state.activeListId,
     updatedAt: now(),
-  }
+  })
 }
 
 export async function ensureRemoteSeed(): Promise<CompraRemoteState> {

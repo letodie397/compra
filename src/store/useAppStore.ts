@@ -61,12 +61,16 @@ interface AppState {
 
 let syncTimer: ReturnType<typeof setTimeout> | null = null
 let applyingRemote = false
+let pushGeneration = 0
+let pendingLocalWrite = false
 
 function schedulePush(get: () => AppState, set: (partial: Partial<AppState>) => void) {
   if (applyingRemote) return
   if (syncTimer) clearTimeout(syncTimer)
+  pendingLocalWrite = true
 
   syncTimer = setTimeout(async () => {
+    const generation = ++pushGeneration
     const state = get()
     set({ syncing: true, syncError: null })
     try {
@@ -75,8 +79,14 @@ function schedulePush(get: () => AppState, set: (partial: Partial<AppState>) => 
         lists: state.lists,
         activeListId: state.activeListId,
       })
-      set({ syncing: false, syncError: null })
+      // Só limpa o estado se este ainda for o push mais recente.
+      if (generation === pushGeneration) {
+        pendingLocalWrite = false
+        set({ syncing: false, syncError: null })
+      }
     } catch (error) {
+      if (generation !== pushGeneration) return
+      pendingLocalWrite = false
       set({
         syncing: false,
         syncError:
@@ -107,7 +117,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   replaceFromRemote: (data) => {
     // Evita sobrescrever mudanças locais enquanto um save está em andamento.
-    if (get().syncing) return
+    if (get().syncing || pendingLocalWrite) return
 
     applyingRemote = true
     set({
