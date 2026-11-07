@@ -1,5 +1,14 @@
 import type { CategoryId, Unit } from '../types'
 
+const UNIT_NAMES: Record<Unit, [string, string]> = {
+  un: ['unidade', 'unidades'],
+  pct: ['pacote', 'pacotes'],
+  L: ['litro', 'litros'],
+  ml: ['ml', 'ml'],
+  kg: ['quilo', 'quilos'],
+  g: ['grama', 'gramas'],
+}
+
 export const CATEGORIES: {
   id: CategoryId
   label: string
@@ -20,4 +29,14 @@ export function categoryLabel(id: CategoryId): string {
 
 export function categoryAccent(id: CategoryId): string {
   return CATEGORIES.find((c) => c.id === id)?.accent ?? '#4a5c4e'
+}
+
+export function unitName(unit: Unit): string {
+  return UNIT_NAMES[unit][0]
+}
+
+export function unitPhrase(quantity: number, unit: Unit): string {
+  const [one, many] = UNIT_NAMES[unit]
+  const amount = Number.isInteger(quantity) ? quantity : Number(quantity.toFixed(1))
+  return `${amount} ${amount === 1 ? one : many}`
 }

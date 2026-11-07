@@ -1,14 +1,10 @@
-import { AnimatePresence, motion } from 'framer-motion'
-import {
-  AlertTriangle,
-  Plus,
-  Search,
-  Sparkles,
-} from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Modal } from '../components/Modal'
 import { ProductCard } from '../components/ProductCard'
 import { ProductForm } from '../components/ProductForm'
+import { SaveStatus } from '../components/SaveStatus'
 import { CATEGORIES } from '../data/categories'
 import { useAppStore } from '../store/useAppStore'
 import type { CategoryId, Product } from '../types'
@@ -20,15 +16,17 @@ export function InventoryView() {
   const deleteProduct = useAppStore((s) => s.deleteProduct)
   const adjustQuantity = useAppStore((s) => s.adjustQuantity)
   const generateListFromLowStock = useAppStore((s) => s.generateListFromLowStock)
-  const getLowStockProducts = useAppStore((s) => s.getLowStockProducts)
+  const setView = useAppStore((s) => s.setView)
 
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<CategoryId | 'all'>('all')
   const [showLowOnly, setShowLowOnly] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Product | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
-  const lowStock = getLowStockProducts()
+  const lowStock = products.filter((p) => p.quantity <= p.minQuantity)
 
   const filtered = useMemo(() => {
     return products
@@ -46,149 +44,137 @@ export function InventoryView() {
       })
   }, [products, category, showLowOnly, query])
 
+  function openNew() {
+    setEditing(null)
+    setFormOpen(true)
+  }
+
+  function makeShoppingList() {
+    if (lowStock.length === 0) {
+      setNotice('Nada acabando agora.')
+      return
+    }
+    setNotice(null)
+    generateListFromLowStock('O que está acabando')
+    setView('lista')
+  }
+
   return (
-    <div className="space-y-5">
-      <header className="animate-float-in space-y-3">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-leaf">
-              Armário de casa
-            </p>
-            <h1 className="font-display text-4xl font-extrabold tracking-tight text-ink">
-              Compra
-            </h1>
-            <p className="mt-1 max-w-sm text-sm text-muted">
-              Controle limpeza, higiene e o que faltar — e transforme em lista
-              de compras.
-            </p>
-          </div>
+    <div className="space-y-4">
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold tracking-[0.14em] text-muted uppercase">
+            Compra
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">Casa</h1>
+        </div>
+        <div className="flex items-center gap-2 pt-1">
+          <SaveStatus />
           <button
             type="button"
-            onClick={() => {
-              setEditing(null)
-              setFormOpen(true)
-            }}
-            className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-leaf text-white shadow-lg shadow-leaf/30 transition hover:bg-leaf-bright"
+            onClick={openNew}
             aria-label="Adicionar produto"
+            className="grid h-9 w-9 place-items-center rounded-full bg-ink text-white"
           >
-            <Plus size={22} />
+            <Plus size={18} />
           </button>
         </div>
-
-        {lowStock.length > 0 && (
-          <motion.button
-            type="button"
-            onClick={() => generateListFromLowStock()}
-            whileTap={{ scale: 0.98 }}
-            className="flex w-full items-center gap-3 rounded-3xl bg-ink px-4 py-3.5 text-left text-white shadow-xl shadow-ink/15"
-          >
-            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-leaf-bright/20 text-leaf-bright">
-              <Sparkles size={20} />
-            </span>
-            <span className="flex-1">
-              <span className="block font-display text-base font-bold">
-                Gerar lista de reposição
-              </span>
-              <span className="text-xs text-white/70">
-                {lowStock.length}{' '}
-                {lowStock.length === 1 ? 'item baixo' : 'itens baixos'} no
-                estoque
-              </span>
-            </span>
-            <AlertTriangle size={18} className="text-warn" />
-          </motion.button>
-        )}
       </header>
 
-      <div className="space-y-3">
-        <div className="relative">
-          <Search
-            size={16}
-            className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted"
-          />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar no estoque..."
-            className="w-full rounded-2xl border border-line bg-white/80 py-3 pr-4 pl-10 text-sm outline-none ring-leaf/25 focus:ring-2"
-          />
-        </div>
+      {lowStock.length > 0 && (
+        <button
+          type="button"
+          onClick={makeShoppingList}
+          className="flex w-full items-center justify-between rounded-2xl bg-ink px-3.5 py-2.5 text-left text-white"
+        >
+          <span>
+            <span className="block text-sm font-semibold">
+              {lowStock.length === 1
+                ? '1 item acabando'
+                : `${lowStock.length} itens acabando`}
+            </span>
+            <span className="text-xs text-white/65">Gerar lista de compras</span>
+          </span>
+          <span className="text-xs font-semibold text-white/80">Criar</span>
+        </button>
+      )}
 
-        <div className="flex gap-2 overflow-x-auto scrollbar-none">
-          <FilterChip
-            active={category === 'all' && !showLowOnly}
+      {notice && (
+        <p className="rounded-xl bg-sand px-3 py-2 text-sm text-ink-soft">{notice}</p>
+      )}
+
+      <div className="relative">
+        <Search
+          size={15}
+          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
+        />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar"
+          aria-label="Buscar pelo nome"
+          className="h-10 w-full rounded-xl border border-line bg-card pr-3 pl-9 text-sm outline-none focus:border-ink"
+        />
+      </div>
+
+      <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
+        <FilterButton
+          active={category === 'all' && !showLowOnly}
+          label="Tudo"
+          onClick={() => {
+            setCategory('all')
+            setShowLowOnly(false)
+          }}
+        />
+        <FilterButton
+          active={showLowOnly}
+          label={`Baixo ${lowStock.length}`}
+          warn
+          onClick={() => {
+            setShowLowOnly(true)
+            setCategory('all')
+          }}
+        />
+        {CATEGORIES.map((c) => (
+          <FilterButton
+            key={c.id}
+            active={category === c.id && !showLowOnly}
+            label={c.label}
             onClick={() => {
-              setCategory('all')
+              setCategory(c.id)
               setShowLowOnly(false)
             }}
-            label="Tudo"
           />
-          <FilterChip
-            active={showLowOnly}
-            onClick={() => {
-              setShowLowOnly(true)
-              setCategory('all')
-            }}
-            label={`Baixo (${lowStock.length})`}
-            warn
-          />
-          {CATEGORIES.map((c) => (
-            <FilterChip
-              key={c.id}
-              active={category === c.id && !showLowOnly}
-              onClick={() => {
-                setCategory(c.id)
-                setShowLowOnly(false)
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-line bg-card px-4 py-8 text-center">
+          <p className="text-sm font-semibold">
+            {products.length === 0 ? 'Nenhum produto' : 'Nada nesse filtro'}
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            {products.length === 0
+              ? 'Toque em + para adicionar.'
+              : 'Toque em Tudo para ver a casa inteira.'}
+          </p>
+        </div>
+      ) : (
+        <div className="divide-y divide-line overflow-hidden rounded-2xl bg-card shadow-[0_1px_2px_rgba(20,24,22,0.04)] ring-1 ring-black/5">
+          {filtered.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              onAdjust={(delta) => adjustQuantity(product.id, delta)}
+              onEdit={() => {
+                setEditing(product)
+                setFormOpen(true)
               }}
-              label={c.label}
+              onDelete={() => setPendingDelete(product)}
             />
           ))}
         </div>
-      </div>
-
-      <div className="space-y-3 pb-4">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="font-display text-lg font-bold text-ink">
-            {filtered.length}{' '}
-            {filtered.length === 1 ? 'produto' : 'produtos'}
-          </h2>
-        </div>
-
-        <AnimatePresence mode="popLayout">
-          {filtered.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="rounded-3xl border border-dashed border-line bg-white/50 px-6 py-12 text-center"
-            >
-              <p className="font-display text-xl font-bold text-ink">
-                Nada por aqui
-              </p>
-              <p className="mt-1 text-sm text-muted">
-                Adicione um produto ou limpe os filtros.
-              </p>
-            </motion.div>
-          ) : (
-            filtered.map((product, index) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                index={index}
-                onAdjust={(delta) => adjustQuantity(product.id, delta)}
-                onEdit={() => {
-                  setEditing(product)
-                  setFormOpen(true)
-                }}
-                onDelete={() => {
-                  if (confirm(`Excluir “${product.name}”?`)) {
-                    deleteProduct(product.id)
-                  }
-                }}
-              />
-            ))
-          )}
-        </AnimatePresence>
-      </div>
+      )}
 
       <Modal
         open={formOpen}
@@ -201,7 +187,7 @@ export function InventoryView() {
         <ProductForm
           key={editing?.id ?? 'new'}
           initial={editing ?? undefined}
-          submitLabel={editing ? 'Atualizar' : 'Adicionar ao estoque'}
+          submitLabel={editing ? 'Salvar' : 'Adicionar'}
           onSubmit={(data) => {
             if (editing) {
               updateProduct(editing.id, data)
@@ -213,11 +199,25 @@ export function InventoryView() {
           }}
         />
       </Modal>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Apagar produto?"
+        message={
+          pendingDelete ? `${pendingDelete.name} sai do estoque de casa.` : null
+        }
+        confirmLabel="Apagar"
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (pendingDelete) deleteProduct(pendingDelete.id)
+          setPendingDelete(null)
+        }}
+      />
     </div>
   )
 }
 
-function FilterChip({
+function FilterButton({
   label,
   active,
   onClick,
@@ -231,13 +231,14 @@ function FilterChip({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
-      className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-bold transition ${
+      className={`h-8 shrink-0 rounded-full px-3 text-xs font-semibold ${
         active
           ? warn
             ? 'bg-warn text-white'
             : 'bg-ink text-white'
-          : 'bg-white/80 text-ink-soft ring-1 ring-line hover:bg-moss'
+          : 'bg-card text-ink-soft ring-1 ring-line'
       }`}
     >
       {label}

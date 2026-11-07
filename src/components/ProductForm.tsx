@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { CATEGORIES, UNITS } from '../data/categories'
+import { CATEGORIES, UNITS, unitName } from '../data/categories'
 import type { CategoryId, Product, Unit } from '../types'
+import { Stepper } from './Stepper'
 
 interface ProductFormProps {
   initial?: Partial<Product>
@@ -14,6 +15,9 @@ interface ProductFormProps {
     notes?: string
   }) => void
 }
+
+const fieldClass =
+  'mt-1 h-10 w-full rounded-xl border border-line bg-paper px-3 text-sm outline-none focus:border-ink'
 
 export function ProductForm({
   initial,
@@ -31,7 +35,7 @@ export function ProductForm({
 
   return (
     <form
-      className="space-y-4"
+      className="space-y-3.5"
       onSubmit={(e) => {
         e.preventDefault()
         if (!name.trim()) return
@@ -45,103 +49,110 @@ export function ProductForm({
         })
       }}
     >
-      <label className="block space-y-1.5">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Nome
-        </span>
+      <label className="block">
+        <span className="text-xs font-medium text-muted">Nome</span>
         <input
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Ex: Detergente"
-          className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none ring-leaf/30 transition focus:ring-2"
+          placeholder="Detergente"
+          className={fieldClass}
           required
         />
       </label>
 
-      <label className="block space-y-1.5">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Categoria
-        </span>
-        <div className="flex flex-wrap gap-2">
+      <fieldset>
+        <legend className="text-xs font-medium text-muted">Categoria</legend>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
           {CATEGORIES.map((c) => (
-            <button
+            <Chip
               key={c.id}
-              type="button"
+              selected={category === c.id}
               onClick={() => setCategory(c.id)}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                category === c.id
-                  ? 'bg-leaf text-white'
-                  : 'bg-sand text-ink-soft hover:bg-moss'
-              }`}
-            >
-              {c.label}
-            </button>
+              label={c.label}
+            />
           ))}
         </div>
-      </label>
+      </fieldset>
 
-      <div className="grid grid-cols-3 gap-3">
-        <label className="block space-y-1.5">
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-            Qtd
-          </span>
-          <input
-            type="number"
-            min={0}
-            value={quantity}
-            onChange={(e) => setQuantity(Number(e.target.value))}
-            className="w-full rounded-2xl border border-line bg-mist px-3 py-3 text-sm outline-none ring-leaf/30 focus:ring-2"
-          />
-        </label>
-        <label className="block space-y-1.5">
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-            Mínimo
-          </span>
-          <input
-            type="number"
-            min={0}
-            value={minQuantity}
-            onChange={(e) => setMinQuantity(Number(e.target.value))}
-            className="w-full rounded-2xl border border-line bg-mist px-3 py-3 text-sm outline-none ring-leaf/30 focus:ring-2"
-          />
-        </label>
-        <label className="block space-y-1.5">
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-            Unidade
-          </span>
-          <select
-            value={unit}
-            onChange={(e) => setUnit(e.target.value as Unit)}
-            className="w-full rounded-2xl border border-line bg-mist px-3 py-3 text-sm outline-none ring-leaf/30 focus:ring-2"
-          >
-            {UNITS.map((u) => (
-              <option key={u} value={u}>
-                {u}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs font-medium text-muted">Quantidade</p>
+          <div className="mt-1.5">
+            <Stepper
+              value={quantity}
+              decreaseLabel="Diminuir quantidade"
+              increaseLabel="Aumentar quantidade"
+              onChange={setQuantity}
+            />
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-medium text-muted">Avisar em</p>
+          <div className="mt-1.5">
+            <Stepper
+              value={minQuantity}
+              decreaseLabel="Diminuir o aviso"
+              increaseLabel="Aumentar o aviso"
+              onChange={setMinQuantity}
+            />
+          </div>
+        </div>
       </div>
 
-      <label className="block space-y-1.5">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Observação
-        </span>
+      <fieldset>
+        <legend className="text-xs font-medium text-muted">Unidade</legend>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {UNITS.map((u) => (
+            <Chip
+              key={u}
+              selected={unit === u}
+              onClick={() => setUnit(u)}
+              label={unitName(u)}
+            />
+          ))}
+        </div>
+      </fieldset>
+
+      <label className="block">
+        <span className="text-xs font-medium text-muted">Anotação</span>
         <input
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Marca, aroma, tamanho..."
-          className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none ring-leaf/30 focus:ring-2"
+          placeholder="Marca ou tamanho"
+          className={fieldClass}
         />
       </label>
 
       <button
         type="submit"
-        className="w-full rounded-2xl bg-leaf py-3.5 text-sm font-bold text-white shadow-lg shadow-leaf/25 transition hover:bg-leaf-bright"
+        className="h-10 w-full rounded-xl bg-ink text-sm font-semibold text-white"
       >
         {submitLabel}
       </button>
     </form>
+  )
+}
+
+function Chip({
+  selected,
+  onClick,
+  label,
+}: {
+  selected: boolean
+  onClick: () => void
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={`h-8 rounded-full px-3 text-xs font-semibold ${
+        selected ? 'bg-ink text-white' : 'bg-sand text-ink-soft'
+      }`}
+    >
+      {label}
+    </button>
   )
 }

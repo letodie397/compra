@@ -16,10 +16,9 @@ export default defineConfig({
       manifest: {
         name: 'Compra — Estoque & Lista',
         short_name: 'Compra',
-        description:
-          'Controle o estoque de casa e gere listas de compra em segundos.',
-        theme_color: '#1a3d2e',
-        background_color: '#f3f6f2',
+        description: 'Veja o que tem em casa e monte a lista de compras.',
+        theme_color: '#141816',
+        background_color: '#f5f6f4',
         display: 'standalone',
         orientation: 'portrait',
         lang: 'pt-BR',
