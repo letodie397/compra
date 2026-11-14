@@ -100,7 +100,9 @@ export function InventoryView() {
       })
     }
 
-    setNotice(`${toList.name} · ${qty} ${toList.unit} na lista`)
+    setNotice(
+      `${toList.name} · ${qty} ${qty === 1 ? 'unidade' : 'unidades'} na lista`,
+    )
     setToList(null)
   }
 
@@ -289,8 +291,9 @@ export function InventoryView() {
             <div>
               <p className="text-base font-semibold">{toList.name}</p>
               <p className="text-sm text-muted">
-                {categoryLabel(toList.category)} · em casa: {toList.quantity}{' '}
-                {toList.unit}
+                {categoryLabel(toList.category)} · em casa:{' '}
+                {toList.quantity}{' '}
+                {toList.quantity === 1 ? 'unidade' : 'unidades'}
               </p>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-2xl bg-sand px-3 py-3">

@@ -12,7 +12,8 @@ export type CategoryId =
   | 'pets'
   | 'outros'
 
-export type Unit = 'un' | 'pct' | 'L' | 'ml' | 'kg' | 'g'
+/** Tudo conta em unidades (pacote, garrafa, quilo embalado etc.). */
+export type Unit = 'un'
 
 export interface Product {
   id: string

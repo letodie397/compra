@@ -1,5 +1,5 @@
 import { Check, Trash2 } from 'lucide-react'
-import { categoryLabel } from '../data/categories'
+import { categoryLabel, unitName } from '../data/categories'
 import type { ShoppingItem } from '../types'
 import { Stepper } from './Stepper'
 
@@ -57,7 +57,7 @@ export function ListItemRow({
             {item.quantity}
           </span>
           <span className="mt-0.5 block text-[11px] font-semibold uppercase tracking-wide opacity-80">
-            {item.unit}
+            {unitName(item.unit)}
           </span>
         </span>
       </button>
@@ -69,7 +69,7 @@ export function ListItemRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-base font-semibold text-ink">{item.name}</p>
         <p className="truncate text-xs text-muted">
-          {categoryLabel(item.category)} · {item.unit}
+          {categoryLabel(item.category)}
         </p>
       </div>
       <div className="flex shrink-0 flex-col items-center gap-0.5">
@@ -82,7 +82,7 @@ export function ListItemRow({
           onChange={onChangeQty}
         />
         <span className="text-[10px] font-semibold tracking-wide text-muted uppercase">
-          {item.unit}
+          {unitName(item.unit)}
         </span>
       </div>
       <button

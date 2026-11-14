@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CATEGORIES, UNITS, unitName } from '../data/categories'
+import { CATEGORIES } from '../data/categories'
 import type { CategoryId, Product, Unit } from '../types'
 import { Stepper } from './Stepper'
 
@@ -30,7 +30,6 @@ export function ProductForm({
   )
   const [quantity, setQuantity] = useState(initial?.quantity ?? 0)
   const [minQuantity, setMinQuantity] = useState(initial?.minQuantity ?? 1)
-  const [unit, setUnit] = useState<Unit>(initial?.unit ?? 'un')
   const [notes, setNotes] = useState(initial?.notes ?? '')
 
   return (
@@ -44,7 +43,7 @@ export function ProductForm({
           category,
           quantity: Math.max(0, Number(quantity) || 0),
           minQuantity: Math.max(0, Number(minQuantity) || 0),
-          unit,
+          unit: 'un',
           notes: notes.trim() || undefined,
         })
       }}
@@ -95,21 +94,6 @@ export function ProductForm({
           {CATEGORIES.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="block">
-        <span className="text-xs font-medium text-muted">Unidade</span>
-        <select
-          value={unit}
-          onChange={(e) => setUnit(e.target.value as Unit)}
-          className={fieldClass}
-        >
-          {UNITS.map((u) => (
-            <option key={u} value={u}>
-              {unitName(u)}
             </option>
           ))}
         </select>

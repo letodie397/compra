@@ -151,6 +151,11 @@ export function hydrateFromCache(): boolean {
   if (!cache) return false
 
   lastPushedHash = cache.lastPushedHash
+  const hadLegacyUnits =
+    cache.products.some((p) => String(p.unit) !== 'un') ||
+    cache.lists.some((l) =>
+      (l.items ?? []).some((i) => String(i.unit) !== 'un'),
+    )
   api.replaceFromRemote(
     {
       products: cache.products,
@@ -160,10 +165,11 @@ export function hydrateFromCache(): boolean {
     { clearDirty: false },
   )
   api.set({
-    dirty: cache.dirty,
+    dirty: cache.dirty || hadLegacyUnits,
     online: typeof navigator !== 'undefined' ? navigator.onLine : true,
   })
   api.setHydrated(true)
+  if (hadLegacyUnits) schedulePersistAndSync()
   return true
 }
 

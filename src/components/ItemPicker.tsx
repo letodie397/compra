@@ -1,7 +1,7 @@
 import { Plus, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { searchCatalog } from '../data/catalog'
-import { CATEGORIES, categoryLabel } from '../data/categories'
+import { CATEGORIES, categoryLabel, unitName, unitPhrase } from '../data/categories'
 import { foldText, textEquals, textIncludes } from '../lib/text'
 import type { CatalogItem, CategoryId, Product, Unit } from '../types'
 import { Modal } from './Modal'
@@ -139,7 +139,7 @@ export function ItemPicker({
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{selected.name}</p>
                   <p className="text-xs text-muted">
-                    {categoryLabel(selected.category)} · {selected.unit}
+                    {categoryLabel(selected.category)} · {unitName()}
                   </p>
                 </div>
                 <Stepper
@@ -213,8 +213,8 @@ export function ItemPicker({
                           {product.name}
                         </span>
                         <span className="block text-xs text-muted">
-                          {categoryLabel(product.category)} · {product.quantity}{' '}
-                          {product.unit}
+                          {categoryLabel(product.category)} ·{' '}
+                          {unitPhrase(product.quantity)}
                         </span>
                       </span>
                       <span className="shrink-0 text-xs font-semibold text-muted">
@@ -255,7 +255,7 @@ export function ItemPicker({
                           {item.name}
                         </span>
                         <span className="block text-xs text-muted">
-                          {categoryLabel(item.category)} · {item.unit}
+                          {categoryLabel(item.category)} · {unitName()}
                         </span>
                       </span>
                       <span className="shrink-0 text-xs font-semibold text-muted">

@@ -1,14 +1,5 @@
 import type { CategoryId, Unit } from '../types'
 
-const UNIT_NAMES: Record<Unit, [string, string]> = {
-  un: ['unidade', 'unidades'],
-  pct: ['pacote', 'pacotes'],
-  L: ['litro', 'litros'],
-  ml: ['ml', 'ml'],
-  kg: ['quilo', 'quilos'],
-  g: ['grama', 'gramas'],
-}
-
 export const CATEGORIES: {
   id: CategoryId
   label: string
@@ -28,7 +19,12 @@ export const CATEGORIES: {
   { id: 'outros', label: 'Outros', accent: '#4a5c4e' },
 ]
 
-export const UNITS: Unit[] = ['un', 'pct', 'L', 'ml', 'kg', 'g']
+export const UNITS: Unit[] = ['un']
+
+/** Converte quilo/litro/pacote antigos para unidade. */
+export function normalizeUnit(_unit?: string | null): Unit {
+  return 'un'
+}
 
 export function categoryLabel(id: CategoryId): string {
   return CATEGORIES.find((c) => c.id === id)?.label ?? id
@@ -38,12 +34,11 @@ export function categoryAccent(id: CategoryId): string {
   return CATEGORIES.find((c) => c.id === id)?.accent ?? '#4a5c4e'
 }
 
-export function unitName(unit: Unit): string {
-  return UNIT_NAMES[unit][0]
+export function unitName(_unit?: Unit): string {
+  return 'unidade'
 }
 
-export function unitPhrase(quantity: number, unit: Unit): string {
-  const [one, many] = UNIT_NAMES[unit]
+export function unitPhrase(quantity: number, _unit?: Unit): string {
   const amount = Number.isInteger(quantity) ? quantity : Number(quantity.toFixed(1))
-  return `${amount} ${amount === 1 ? one : many}`
+  return `${amount} ${amount === 1 ? 'unidade' : 'unidades'}`
 }

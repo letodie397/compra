@@ -9,6 +9,7 @@ import {
 } from 'firebase/database'
 import { SEED_PRODUCTS } from '../data/seed'
 import type { Product, ShoppingItem, ShoppingList } from '../types'
+import { normalizeUnit } from '../data/categories'
 import { COMPRA_ROOT, database } from './config'
 
 export interface CompraRemoteState {
@@ -59,7 +60,7 @@ function normalizeList(raw: unknown): ShoppingList | null {
         name: item.name,
         category: item.category,
         quantity: Number(item.quantity) || 1,
-        unit: item.unit,
+        unit: normalizeUnit(item.unit),
         checked: Boolean(item.checked),
       }
       if (item.productId) normalized.productId = item.productId
@@ -80,7 +81,7 @@ function normalizeProduct(raw: unknown): Product | null {
     category: product.category ?? 'outros',
     quantity: Number(product.quantity) || 0,
     minQuantity: Number(product.minQuantity) || 0,
-    unit: product.unit ?? 'un',
+    unit: normalizeUnit(product.unit),
     updatedAt: product.updatedAt ?? now(),
   }
 
@@ -147,7 +148,7 @@ export function toRemotePayload(state: CompraRemoteState) {
         name: item.name,
         category: item.category,
         quantity: item.quantity,
-        unit: item.unit,
+        unit: normalizeUnit(item.unit),
         checked: Boolean(item.checked),
       }
       if (item.productId) normalizedItem.productId = item.productId
@@ -171,7 +172,7 @@ export function toRemotePayload(state: CompraRemoteState) {
       category: product.category,
       quantity: product.quantity,
       minQuantity: product.minQuantity,
-      unit: product.unit,
+      unit: normalizeUnit(product.unit),
       updatedAt: product.updatedAt,
     }
     if (product.notes) clean.notes = product.notes
@@ -288,7 +289,7 @@ export function mergeStates(
         ...existing,
         name: preferLocal ? item.name : existing.name,
         category: preferLocal ? item.category : existing.category,
-        unit: preferLocal ? item.unit : existing.unit,
+        unit: normalizeUnit(preferLocal ? item.unit : existing.unit),
         quantity: preferLocal ? item.quantity : existing.quantity,
         productId: preferLocal
           ? (item.productId ?? existing.productId)

@@ -4,6 +4,7 @@ import {
   retryCloudSync,
   schedulePersistAndSync,
 } from '../sync/engine'
+import { normalizeUnit } from '../data/categories'
 import { textEquals } from '../lib/text'
 import type {
   AppView,
@@ -98,10 +99,18 @@ export const useAppStore = create<AppState>()((set, get) => {
     replaceFromRemote: (data, opts) => {
       applyingRemote = true
       set({
-        products: Array.isArray(data.products) ? data.products : [],
+        products: (Array.isArray(data.products) ? data.products : []).map(
+          (product) => ({
+            ...product,
+            unit: normalizeUnit(product.unit),
+          }),
+        ),
         lists: (Array.isArray(data.lists) ? data.lists : []).map((list) => ({
           ...list,
-          items: Array.isArray(list.items) ? list.items : [],
+          items: (Array.isArray(list.items) ? list.items : []).map((item) => ({
+            ...item,
+            unit: normalizeUnit(item.unit),
+          })),
         })),
         activeListId: data.activeListId ?? null,
         hydrated: true,
@@ -118,6 +127,7 @@ export const useAppStore = create<AppState>()((set, get) => {
         products: [
           {
             ...data,
+            unit: normalizeUnit(data.unit),
             id: uid(),
             updatedAt: now(),
           },
@@ -130,7 +140,14 @@ export const useAppStore = create<AppState>()((set, get) => {
     updateProduct: (id, data) => {
       set((state) => ({
         products: state.products.map((p) =>
-          p.id === id ? { ...p, ...data, updatedAt: now() } : p,
+          p.id === id
+            ? {
+                ...p,
+                ...data,
+                unit: normalizeUnit(data.unit ?? p.unit),
+                updatedAt: now(),
+              }
+            : p,
         ),
       }))
       touch()
@@ -185,7 +202,7 @@ export const useAppStore = create<AppState>()((set, get) => {
         name: p.name,
         category: p.category,
         quantity: Math.max(1, p.minQuantity - p.quantity),
-        unit: p.unit,
+        unit: normalizeUnit(p.unit),
         checked: false,
       }))
       const list: ShoppingList = {
@@ -239,7 +256,12 @@ export const useAppStore = create<AppState>()((set, get) => {
             ? {
                 ...l,
                 items: [
-                  { ...item, id: uid(), checked: false },
+                  {
+                    ...item,
+                    unit: normalizeUnit(item.unit),
+                    id: uid(),
+                    checked: false,
+                  },
                   ...(l.items ?? []),
                 ],
                 updatedAt: now(),
@@ -257,7 +279,13 @@ export const useAppStore = create<AppState>()((set, get) => {
             ? {
                 ...l,
                 items: (l.items ?? []).map((i) =>
-                  i.id === itemId ? { ...i, ...data } : i,
+                  i.id === itemId
+                    ? {
+                        ...i,
+                        ...data,
+                        unit: normalizeUnit(data.unit ?? i.unit),
+                      }
+                    : i,
                 ),
                 updatedAt: now(),
               }
