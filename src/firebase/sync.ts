@@ -1,4 +1,12 @@
-import { get, goOffline, goOnline, ref, set } from 'firebase/database'
+import {
+  get,
+  goOffline,
+  goOnline,
+  onValue,
+  ref,
+  set,
+  type Unsubscribe,
+} from 'firebase/database'
 import { SEED_PRODUCTS } from '../data/seed'
 import type { Product, ShoppingItem, ShoppingList } from '../types'
 import { COMPRA_ROOT, database } from './config'
@@ -240,6 +248,91 @@ export async function pushCompraState(state: CompraRemoteState): Promise<string>
   const payload = toRemotePayload(state)
   await set(ref(database, COMPRA_ROOT), payload)
   return stateHash(state)
+}
+
+/** Une dois estados para 2+ aparelhos na mesma lista (sem perder checks). */
+export function mergeStates(
+  local: CompraRemoteState,
+  remote: CompraRemoteState,
+): CompraRemoteState {
+  const products = new Map<string, Product>()
+  for (const product of remote.products) products.set(product.id, product)
+  for (const product of local.products) {
+    const other = products.get(product.id)
+    if (!other || product.updatedAt >= other.updatedAt) {
+      products.set(product.id, product)
+    }
+  }
+
+  const lists = new Map<string, ShoppingList>()
+  for (const list of remote.lists) {
+    lists.set(list.id, { ...list, items: [...(list.items ?? [])] })
+  }
+  for (const list of local.lists) {
+    const other = lists.get(list.id)
+    if (!other) {
+      lists.set(list.id, { ...list, items: [...(list.items ?? [])] })
+      continue
+    }
+
+    const items = new Map<string, ShoppingItem>()
+    for (const item of other.items ?? []) items.set(item.id, item)
+    for (const item of list.items ?? []) {
+      const existing = items.get(item.id)
+      if (!existing) {
+        items.set(item.id, item)
+        continue
+      }
+      const preferLocal = list.updatedAt >= other.updatedAt
+      items.set(item.id, {
+        ...existing,
+        name: preferLocal ? item.name : existing.name,
+        category: preferLocal ? item.category : existing.category,
+        unit: preferLocal ? item.unit : existing.unit,
+        quantity: preferLocal ? item.quantity : existing.quantity,
+        productId: preferLocal
+          ? (item.productId ?? existing.productId)
+          : (existing.productId ?? item.productId),
+        notes: preferLocal
+          ? (item.notes ?? existing.notes)
+          : (existing.notes ?? item.notes),
+        // No mercado, o marcado em qualquer aparelho vale.
+        checked: Boolean(existing.checked || item.checked),
+      })
+    }
+
+    lists.set(list.id, {
+      ...other,
+      name: list.updatedAt >= other.updatedAt ? list.name : other.name,
+      updatedAt:
+        list.updatedAt >= other.updatedAt ? list.updatedAt : other.updatedAt,
+      items: [...items.values()],
+    })
+  }
+
+  return {
+    products: [...products.values()],
+    lists: [...lists.values()],
+    activeListId: local.activeListId ?? remote.activeListId,
+    updatedAt: local.updatedAt ?? remote.updatedAt,
+  }
+}
+
+export function subscribeCompra(
+  onChange: (state: CompraRemoteState) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  return onValue(
+    ref(database, COMPRA_ROOT),
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        onChange({ products: [], lists: [], activeListId: null })
+        return
+      }
+      onChange(normalizeState(snapshot.val()))
+    },
+    (error) => onError?.(error),
+  )
 }
 
 export function setFirebaseConnection(online: boolean): void {

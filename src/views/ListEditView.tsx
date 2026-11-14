@@ -1,7 +1,9 @@
+import { Pencil } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ItemPicker } from '../components/ItemPicker'
 import { ListItemRow } from '../components/ListItemRow'
+import { Modal } from '../components/Modal'
 import { SaveStatus } from '../components/SaveStatus'
 import { useAppStore } from '../store/useAppStore'
 
@@ -24,6 +26,8 @@ export function ListEditView() {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [ask, setAsk] = useState<Ask>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renameDraft, setRenameDraft] = useState('')
 
   const activeList = useMemo(
     () => lists.find((l) => l.id === activeListId) ?? lists[0] ?? null,
@@ -119,12 +123,27 @@ export function ListEditView() {
         </div>
       ) : (
         <section className="space-y-3">
-          <input
-            value={activeList.name}
-            aria-label="Nome desta lista"
-            onChange={(e) => renameList(activeList.id, e.target.value)}
-            className="w-full bg-transparent text-lg font-semibold tracking-tight outline-none"
-          />
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1 rounded-2xl bg-card px-3 py-2.5 ring-1 ring-line">
+              <p className="text-[11px] font-semibold tracking-wide text-muted uppercase">
+                Nome da lista
+              </p>
+              <p className="truncate text-lg font-semibold tracking-tight">
+                {activeList.name || 'Sem nome'}
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-label="Editar nome da lista"
+              onClick={() => {
+                setRenameDraft(activeList.name)
+                setRenameOpen(true)
+              }}
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-sand text-ink"
+            >
+              <Pencil size={16} />
+            </button>
+          </div>
 
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-muted">
@@ -201,6 +220,39 @@ export function ListEditView() {
           addListItem(activeList.id, item)
         }}
       />
+
+      <Modal
+        open={renameOpen}
+        title="Editar nome"
+        onClose={() => setRenameOpen(false)}
+      >
+        <div className="space-y-4">
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium text-ink-soft">
+              Nome da lista
+            </span>
+            <input
+              value={renameDraft}
+              onChange={(e) => setRenameDraft(e.target.value)}
+              autoFocus
+              placeholder="Ex.: Feira de sábado"
+              className="h-11 w-full rounded-xl border border-line bg-paper px-3 text-base outline-none focus:border-ink"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              if (!activeList) return
+              const next = renameDraft.trim() || 'Lista de compras'
+              renameList(activeList.id, next)
+              setRenameOpen(false)
+            }}
+            className="h-11 w-full rounded-xl bg-ink text-sm font-semibold text-white"
+          >
+            Salvar nome
+          </button>
+        </div>
+      </Modal>
 
       <ConfirmDialog
         open={ask === 'delete-list'}

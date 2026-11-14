@@ -1,16 +1,18 @@
 import {
   ensureRemoteSeedIfEmpty,
   fetchRemoteOnce,
+  mergeStates,
   pushCompraState,
   setFirebaseConnection,
   stateHash,
+  subscribeCompra,
   type CompraRemoteState,
 } from '../firebase/sync'
 import { loadCache, saveCache, type CachedCompraState } from '../lib/localCache'
 
-const LOCAL_DEBOUNCE_MS = 80
-const CLOUD_DEBOUNCE_MS = 2500
-const REMOTE_POLL_MS = 120_000
+const LOCAL_DEBOUNCE_MS = 60
+/** Push rápido para 2 pessoas na mesma lista. */
+const CLOUD_DEBOUNCE_MS = 400
 
 type StoreSlice = {
   products: CompraRemoteState['products']
@@ -25,7 +27,10 @@ type StoreSlice = {
 type StoreApi = {
   get: () => StoreSlice
   set: (partial: Partial<StoreSlice>) => void
-  replaceFromRemote: (data: CompraRemoteState, opts?: { clearDirty?: boolean }) => void
+  replaceFromRemote: (
+    data: CompraRemoteState,
+    opts?: { clearDirty?: boolean },
+  ) => void
   setHydrated: (value: boolean) => void
 }
 
@@ -36,6 +41,7 @@ let pushGeneration = 0
 let lastPushedHash: string | null = null
 let started = false
 let flushing = false
+let liveUnsub: (() => void) | null = null
 
 function snapshotFromStore(): CompraRemoteState {
   const state = api!.get()
@@ -60,11 +66,79 @@ function persistLocalNow(markDirty = true) {
     activeListId: state.activeListId,
     updatedAt: new Date().toISOString(),
     dirty,
-    lastSyncedAt: dirty ? (previous?.lastSyncedAt ?? null) : (previous?.lastSyncedAt ?? new Date().toISOString()),
+    lastSyncedAt: dirty
+      ? (previous?.lastSyncedAt ?? null)
+      : (previous?.lastSyncedAt ?? new Date().toISOString()),
     lastPushedHash,
   }
 
   saveCache(cache)
+}
+
+function applyRemoteState(
+  remote: CompraRemoteState,
+  opts: { clearDirty: boolean; merged?: boolean },
+) {
+  if (!api) return
+  const hash = stateHash(remote)
+  lastPushedHash = hash
+  api.replaceFromRemote(remote, { clearDirty: opts.clearDirty })
+  saveCache({
+    products: remote.products,
+    lists: remote.lists,
+    activeListId: remote.activeListId,
+    updatedAt: remote.updatedAt ?? new Date().toISOString(),
+    dirty: !opts.clearDirty,
+    lastSyncedAt: new Date().toISOString(),
+    lastPushedHash,
+  })
+  if (!opts.clearDirty) api.set({ dirty: true })
+}
+
+function handleLiveRemote(remote: CompraRemoteState) {
+  if (!api) return
+
+  const remoteHash = stateHash(remote)
+  // Eco do nosso próprio save.
+  if (remoteHash === lastPushedHash) return
+
+  const state = api.get()
+  if (state.syncing || flushing) return
+
+  if (state.dirty) {
+    const local = snapshotFromStore()
+    const merged = mergeStates(local, remote)
+    const mergedHash = stateHash(merged)
+    if (mergedHash === stateHash(local)) {
+      // Remoto não trouxe nada novo além do que já temos.
+      return
+    }
+    applyRemoteState(merged, { clearDirty: false, merged: true })
+    // Empurra o merge para os outros aparelhos assim que possível.
+    queueMicrotask(() => {
+      schedulePersistAndSync()
+    })
+    return
+  }
+
+  applyRemoteState(remote, { clearDirty: true })
+}
+
+function startLiveListener() {
+  if (liveUnsub || !api) return
+  liveUnsub = subscribeCompra(
+    (remote) => {
+      handleLiveRemote(remote)
+    },
+    (error) => {
+      api?.set({ syncError: error.message })
+    },
+  )
+}
+
+function stopLiveListener() {
+  liveUnsub?.()
+  liveUnsub = null
 }
 
 export function bindSyncEngine(next: StoreApi) {
@@ -141,7 +215,6 @@ export async function flushToCloud(force = false): Promise<void> {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     api.set({ online: false, dirty: true, syncing: false })
     persistLocalNow(true)
-    setFirebaseConnection(false)
     return
   }
 
@@ -185,37 +258,14 @@ export async function flushToCloud(force = false): Promise<void> {
 async function pullRemoteIfNeeded() {
   if (!api) return
   const state = api.get()
-  if (!state.online || state.dirty || state.syncing) return
+  if (!state.online || state.syncing) return
 
   try {
     const remote = await fetchRemoteOnce()
     if (!remote || !api) return
-
-    const current = snapshotFromStore()
-    const remoteHash = stateHash(remote)
-    const localHash = stateHash(current)
-
-    if (remoteHash === localHash) {
-      lastPushedHash = remoteHash
-      return
-    }
-
-    // Se o remoto for diferente e não há edição local pendente, aplica remoto.
-    if (!api.get().dirty) {
-      lastPushedHash = remoteHash
-      api.replaceFromRemote(remote, { clearDirty: true })
-      saveCache({
-        products: remote.products,
-        lists: remote.lists,
-        activeListId: remote.activeListId,
-        updatedAt: remote.updatedAt ?? new Date().toISOString(),
-        dirty: false,
-        lastSyncedAt: new Date().toISOString(),
-        lastPushedHash,
-      })
-    }
+    handleLiveRemote(remote)
   } catch {
-    // Pull silencioso — não assusta o usuário se o poll falhar.
+    // Pull silencioso.
   }
 }
 
@@ -244,7 +294,6 @@ export async function startSyncLifecycle() {
     if (hadCache && api.get().dirty) {
       await flushToCloud(true)
     } else if (hadCache) {
-      // Uma leitura só para alinhar com outros dispositivos.
       await pullRemoteIfNeeded()
     } else {
       const remote = await ensureRemoteSeedIfEmpty()
@@ -281,15 +330,18 @@ export async function startSyncLifecycle() {
     api.setHydrated(true)
   }
 
+  startLiveListener()
+
   const onOnline = () => {
     api?.set({ online: true })
     setFirebaseConnection(true)
+    startLiveListener()
     if (api?.get().dirty) void flushToCloud(true)
     else void pullRemoteIfNeeded()
   }
   const onOffline = () => {
+    stopLiveListener()
     api?.set({ online: false, syncing: false })
-    setFirebaseConnection(false)
     persistLocalNow(Boolean(api?.get().dirty))
   }
 
@@ -302,21 +354,16 @@ export async function startSyncLifecycle() {
       if (api?.get().dirty && navigator.onLine) {
         void flushToCloud(true)
       }
-      setFirebaseConnection(false)
+      // Mantém a conexão viva um pouco — compras em 2 aparelhos.
       return
     }
     if (navigator.onLine) {
       setFirebaseConnection(true)
+      startLiveListener()
       void pullRemoteIfNeeded()
     }
   }
   document.addEventListener('visibilitychange', onVisibility)
-
-  setInterval(() => {
-    if (document.visibilityState !== 'visible') return
-    if (!navigator.onLine) return
-    void pullRemoteIfNeeded()
-  }, REMOTE_POLL_MS)
 
   window.addEventListener('beforeunload', () => {
     persistLocalNow(api?.get().dirty ?? false)
