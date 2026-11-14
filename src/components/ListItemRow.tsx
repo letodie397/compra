@@ -23,66 +23,75 @@ export function ListItemRow({
       <button
         type="button"
         onClick={onToggle}
-        className={`flex w-full items-center gap-3 px-3 py-3 text-left ${
+        className={`flex w-full items-center gap-3 px-3 py-3.5 text-left ${
           item.checked ? 'bg-moss/60' : ''
         }`}
       >
         <span
-          className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border ${
+          className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border ${
             item.checked
               ? 'border-leaf bg-leaf text-white'
               : 'border-line bg-white text-transparent'
           }`}
         >
-          <Check size={16} strokeWidth={3} />
+          <Check size={18} strokeWidth={3} />
         </span>
         <span className="min-w-0 flex-1">
           <span
-            className={`block truncate text-sm font-semibold ${
+            className={`block truncate text-base font-semibold ${
               item.checked ? 'text-muted line-through' : 'text-ink'
             }`}
           >
             {item.name}
           </span>
           <span className="block text-xs text-muted">
-            {item.quantity} {item.unit} · {categoryLabel(item.category)}
+            {categoryLabel(item.category)}
           </span>
         </span>
         <span
-          className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${
-            item.checked
-              ? 'bg-leaf text-white'
-              : 'bg-warn-soft text-warn'
+          className={`shrink-0 rounded-2xl px-3 py-1.5 text-center ${
+            item.checked ? 'bg-leaf/15 text-leaf' : 'bg-ink text-white'
           }`}
         >
-          {item.checked ? 'Peguei' : 'Falta'}
+          <span className="block text-xl font-bold leading-none tabular-nums">
+            {item.quantity}
+          </span>
+          <span className="mt-0.5 block text-[11px] font-semibold uppercase tracking-wide opacity-80">
+            {item.unit}
+          </span>
         </span>
       </button>
     )
   }
 
   return (
-    <article className="flex items-center gap-2.5 px-3 py-2.5">
+    <article className="flex items-center gap-2.5 px-3 py-3">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
+        <p className="truncate text-base font-semibold text-ink">{item.name}</p>
         <p className="truncate text-xs text-muted">
           {categoryLabel(item.category)} · {item.unit}
         </p>
       </div>
-      <Stepper
-        value={item.quantity}
-        min={1}
-        decreaseLabel={`Diminuir ${item.name}`}
-        increaseLabel={`Aumentar ${item.name}`}
-        onChange={onChangeQty}
-      />
+      <div className="flex shrink-0 flex-col items-center gap-0.5">
+        <Stepper
+          value={item.quantity}
+          min={1}
+          size="lg"
+          decreaseLabel={`Diminuir ${item.name}`}
+          increaseLabel={`Aumentar ${item.name}`}
+          onChange={onChangeQty}
+        />
+        <span className="text-[10px] font-semibold tracking-wide text-muted uppercase">
+          {item.unit}
+        </span>
+      </div>
       <button
         type="button"
         aria-label={`Tirar ${item.name}`}
         onClick={onRemove}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted hover:bg-warn-soft hover:text-warn"
+        className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted hover:bg-warn-soft hover:text-warn"
       >
-        <Trash2 size={14} />
+        <Trash2 size={16} />
       </button>
     </article>
   )
